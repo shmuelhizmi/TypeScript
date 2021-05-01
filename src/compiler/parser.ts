@@ -2848,7 +2848,7 @@ namespace ts {
             if (lookAhead(nextTokenIsOpenParen)) {
                 nextToken();
                 const parameters = parseParameters(SignatureFlags.Type | SignatureFlags.JSDoc);
-                const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+                const type = parseReturnType(SyntaxKind.ColonToken);
                 return withJSDoc(finishNode(factory.createJSDocFunctionType(parameters, type), pos), hasJSDoc);
             }
             return finishNode(factory.createTypeReferenceNode(parseIdentifierName(), /*typeArguments*/ undefined), pos);
@@ -3038,29 +3038,29 @@ namespace ts {
             return node;
         }
 
-        function parseReturnType(returnToken: SyntaxKind.EqualsGreaterThanToken, isType: boolean): TypeNode;
-        function parseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken, isType: boolean): TypeNode | undefined;
-        function parseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken, isType: boolean) {
-            if (shouldParseReturnType(returnToken, isType)) {
+        function parseReturnType(returnToken: SyntaxKind.EqualsGreaterThanToken): TypeNode;
+        function parseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken): TypeNode | undefined;
+        function parseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken) {
+            if (shouldParseReturnType(returnToken)) {
                 return parseTypeOrTypePredicate();
             }
         }
 
-        function shouldParseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken, isType: boolean): boolean {
+        function shouldParseReturnType(returnToken: SyntaxKind.ColonToken | SyntaxKind.EqualsGreaterThanToken): boolean {
             if (returnToken === SyntaxKind.EqualsGreaterThanToken) {
                 parseExpected(returnToken);
                 return true;
             }
-            else if (parseOptional(SyntaxKind.ColonToken)) {
-                return true;
+            else {
+                return parseOptional(SyntaxKind.ColonToken) || (isStartOfType() && !isStartOfBlock());
             }
-            else if (isType && token() === SyntaxKind.EqualsGreaterThanToken) {
-                // This is easy to get backward, especially in type contexts, so parse the type anyway
-                parseErrorAtCurrentToken(Diagnostics._0_expected, tokenToString(SyntaxKind.ColonToken));
-                nextToken();
-                return true;
-            }
-            return false;
+            // else if (isType && token() === SyntaxKind.EqualsGreaterThanToken) {
+            //     // This is easy to get backward, especially in type contexts, so parse the type anyway
+            //     parseErrorAtCurrentToken(Diagnostics._0_expected, tokenToString(SyntaxKind.ColonToken));
+            //     nextToken();
+            //     return true;
+            // }
+            // return false;
         }
 
         function parseParametersWorker(flags: SignatureFlags) {
@@ -3136,7 +3136,7 @@ namespace ts {
 
             const typeParameters = parseTypeParameters();
             const parameters = parseParameters(SignatureFlags.Type);
-            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ true);
+            const type = parseReturnType(SyntaxKind.ColonToken);
             parseTypeMemberSemicolon();
             const node = kind === SyntaxKind.CallSignature
                 ? factory.createCallSignature(typeParameters, parameters, type)
@@ -3220,7 +3220,7 @@ namespace ts {
                 // [Yield] nor [Await]
                 const typeParameters = parseTypeParameters();
                 const parameters = parseParameters(SignatureFlags.Type);
-                const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ true);
+                const type = parseReturnType(SyntaxKind.ColonToken);
                 node = factory.createMethodSignature(modifiers, name, questionToken, typeParameters, parameters, type);
             }
             else {
@@ -3455,7 +3455,7 @@ namespace ts {
             const isConstructorType = parseOptional(SyntaxKind.NewKeyword);
             const typeParameters = parseTypeParameters();
             const parameters = parseParameters(SignatureFlags.Type);
-            const type = parseReturnType(SyntaxKind.EqualsGreaterThanToken, /*isType*/ false);
+            const type = parseReturnType(SyntaxKind.EqualsGreaterThanToken);
             const node = isConstructorType
                 ? factory.createConstructorTypeNode(modifiers, typeParameters, parameters, type)
                 : factory.createFunctionTypeNode(typeParameters, parameters, type);
@@ -4367,7 +4367,7 @@ namespace ts {
                 }
             }
 
-            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+            const type = parseReturnType(SyntaxKind.ColonToken);
             if (type && !allowAmbiguity && typeHasArrowFunctionBlockingParseError(type)) {
                 return undefined;
             }
@@ -5558,7 +5558,7 @@ namespace ts {
 
             const typeParameters = parseTypeParameters();
             const parameters = parseParameters(isGenerator | isAsync);
-            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+            const type = parseReturnType(SyntaxKind.ColonToken);
             const body = parseFunctionBlock(isGenerator | isAsync);
 
             if (saveDecoratorContext) {
@@ -5604,6 +5604,15 @@ namespace ts {
                 parseErrorAt(pos, scanner.getStartPos(), Diagnostics.A_new_expression_with_type_arguments_must_always_be_followed_by_a_parenthesized_argument_list);
             }
             return finishNode(factory.createNewExpression(expression, typeArguments, argumentsArray), pos);
+        }
+
+        function isStartOfBlock(): boolean {
+            return lookAhead(() => {
+                if (!parseExpected(SyntaxKind.OpenBraceToken)) {
+                    return false;
+                }
+                return isStartOfStatement();
+            });
         }
 
         // STATEMENTS
@@ -6450,7 +6459,7 @@ namespace ts {
             const typeParameters = parseTypeParameters();
             if (modifierFlags & ModifierFlags.Export) setAwaitContext(/*value*/ true);
             const parameters = parseParameters(isGenerator | isAsync);
-            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+            const type = parseReturnType(SyntaxKind.ColonToken);
             const body = parseFunctionBlockOrSemicolon(isGenerator | isAsync, Diagnostics.or_expected);
             setAwaitContext(savedAwaitContext);
             const node = factory.createFunctionDeclaration(decorators, modifiers, asteriskToken, name, typeParameters, parameters, type, body);
@@ -6474,7 +6483,7 @@ namespace ts {
                 if (parseConstructorName()) {
                     const typeParameters = parseTypeParameters();
                     const parameters = parseParameters(SignatureFlags.None);
-                    const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+                    const type = parseReturnType(SyntaxKind.ColonToken);
                     const body = parseFunctionBlockOrSemicolon(SignatureFlags.None, Diagnostics.or_expected);
                     const node = factory.createConstructorDeclaration(decorators, modifiers, parameters, body);
                     // Attach `typeParameters` and `type` if they exist so that we can report them in the grammar checker.
@@ -6500,7 +6509,7 @@ namespace ts {
             const isAsync = some(modifiers, isAsyncModifier) ? SignatureFlags.Await : SignatureFlags.None;
             const typeParameters = parseTypeParameters();
             const parameters = parseParameters(isGenerator | isAsync);
-            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+            const type = parseReturnType(SyntaxKind.ColonToken);
             const body = parseFunctionBlockOrSemicolon(isGenerator | isAsync, diagnosticMessage);
             const node = factory.createMethodDeclaration(
                 decorators,
@@ -6555,7 +6564,7 @@ namespace ts {
             const name = parsePropertyName();
             const typeParameters = parseTypeParameters();
             const parameters = parseParameters(SignatureFlags.None);
-            const type = parseReturnType(SyntaxKind.ColonToken, /*isType*/ false);
+            const type = parseReturnType(SyntaxKind.ColonToken);
             const body = parseFunctionBlockOrSemicolon(SignatureFlags.None);
             const node = kind === SyntaxKind.GetAccessor
                 ? factory.createGetAccessorDeclaration(decorators, modifiers, name, parameters, type, body)
