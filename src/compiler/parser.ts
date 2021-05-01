@@ -4081,6 +4081,11 @@ namespace ts {
             return !scanner.hasPrecedingLineBreak() && isIdentifier();
         }
 
+        function nextTokenIsAssignDeclare() {
+            nextToken();
+            return token() === SyntaxKind.AssignDeclareToken;
+        }
+
         function parseYieldExpression(): YieldExpression {
             const pos = getNodePos();
 
@@ -5938,6 +5943,8 @@ namespace ts {
         function isDeclaration(): boolean {
             while (true) {
                 switch (token()) {
+                    case SyntaxKind.Identifier:
+                        return nextTokenIsAssignDeclare();
                     case SyntaxKind.VarKeyword:
                     case SyntaxKind.LetKeyword:
                     case SyntaxKind.ConstKeyword:
@@ -6052,6 +6059,8 @@ namespace ts {
                 case SyntaxKind.ImportKeyword:
                     return isStartOfDeclaration() || lookAhead(nextTokenIsOpenParenOrLessThanOrDot);
 
+                case SyntaxKind.Identifier:
+                    return isStartOfDeclaration() || isStartOfExpression();
                 case SyntaxKind.ConstKeyword:
                 case SyntaxKind.ExportKeyword:
                     return isStartOfDeclaration();
@@ -6102,6 +6111,11 @@ namespace ts {
                 case SyntaxKind.LetKeyword:
                     if (isLetDeclaration()) {
                         return parseVariableStatement(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
+                    }
+                    break;
+                case SyntaxKind.Identifier:
+                    if (lookAhead(() => isDeclaration())) {
+                        return parseAssignDeclareStatement(getNodePos(), hasPrecedingJSDocComment());
                     }
                     break;
                 case SyntaxKind.FunctionKeyword:
@@ -6406,6 +6420,22 @@ namespace ts {
             // Decorators are not allowed on a variable statement, so we keep track of them to report them in the grammar checker.
             node.decorators = decorators;
             return withJSDoc(finishNode(node, pos), hasJSDoc);
+        }
+
+        function parseAssignDeclareStatement(pos: number, hasJSDoc: boolean): VariableStatement {
+            const name = parseIdentifierOrPattern(Diagnostics.Private_identifiers_are_not_allowed_in_variable_declarations);
+            nextToken(); // finish :=
+            const initializer = parseAssignmentExpressionOrHigher();
+            parseSemicolon();
+            return withJSDoc(finishNode(factory.createVariableStatement([], [
+                finishNode(
+                        factory.createVariableDeclaration(
+                            name, /*exclamationToken*/ undefined, /*type*/ undefined, initializer
+                        ),
+                        pos,
+                        getNodePos()
+                        )
+            ]), pos, getNodePos()), hasJSDoc);
         }
 
         function parseFunctionDeclaration(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): FunctionDeclaration {

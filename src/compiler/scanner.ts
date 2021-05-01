@@ -161,6 +161,7 @@ namespace ts {
 
     const textToToken = new Map(getEntries({
         ...textToKeywordObj,
+        ":=": SyntaxKind.AssignDeclareToken,
         "{": SyntaxKind.OpenBraceToken,
         "}": SyntaxKind.CloseBraceToken,
         "(": SyntaxKind.OpenParenToken,
@@ -1893,6 +1894,10 @@ namespace ts {
                         return token;
                     case CharacterCodes.colon:
                         pos++;
+                        if (text.charCodeAt(pos) === CharacterCodes.equals) {
+                            pos++;
+                            return token = SyntaxKind.AssignDeclareToken;
+                        }
                         return token = SyntaxKind.ColonToken;
                     case CharacterCodes.semicolon:
                         pos++;

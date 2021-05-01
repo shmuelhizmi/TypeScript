@@ -19,6 +19,9 @@ namespace ts {
     // token > SyntaxKind.Identifier => token is a keyword
     // Also, If you add a new SyntaxKind be sure to keep the `Markers` section at the bottom in sync
     export const enum SyntaxKind {
+        //GO like syntax start
+        AssignDeclareToken,
+        //GO like syntax end
         Unknown,
         EndOfFileToken,
         SingleLineCommentTrivia,
