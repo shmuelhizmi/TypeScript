@@ -3871,7 +3871,12 @@ namespace ts {
         }
 
         function parseTypeAnnotation(): TypeNode | undefined {
-            return (parseOptional(SyntaxKind.ColonToken) || (isStartOfType() && !isStartOfBlock())) ? parseType() : undefined;
+            return parseOptional(SyntaxKind.ColonToken) ||
+                (isStartOfType() &&
+                    !isStartOfBlock() &&
+                    !isInOrOfKeyword(token()))
+                ? parseType()
+                : undefined;
         }
 
         // EXPRESSIONS
@@ -5606,7 +5611,11 @@ namespace ts {
                 if (!parseExpected(SyntaxKind.OpenBraceToken)) {
                     return false;
                 }
-                return isStartOfStatement();
+                /**
+                 * if equal { statement ... return true
+                 * but in case of {} we should verify this is not a type - ~()~ {} {} is bad but ~()~ {} is ok
+                 */
+                return isStartOfStatement() || (parseExpected(SyntaxKind.CloseBraceToken) && !parseExpected(SyntaxKind.OpenBraceToken));
             });
         }
 
@@ -6453,7 +6462,8 @@ namespace ts {
                                     ],
                                     pos,
                                     endPosition
-                                )
+                                ),
+                                NodeFlags.Const,
                             ),
                             pos,
                             endPosition
