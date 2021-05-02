@@ -5956,8 +5956,6 @@ namespace ts {
         function isDeclaration(): boolean {
             while (true) {
                 switch (token()) {
-                    case SyntaxKind.Identifier:
-                        return nextTokenIsAssignDeclare();
                     case SyntaxKind.VarKeyword:
                     case SyntaxKind.LetKeyword:
                     case SyntaxKind.ConstKeyword:
@@ -6031,6 +6029,9 @@ namespace ts {
                         nextToken();
                         continue;
                     default:
+                        if (isBindingIdentifier()) {
+                            return nextTokenIsAssignDeclare();
+                        }
                         return false;
                 }
             }
@@ -6072,8 +6073,6 @@ namespace ts {
                 case SyntaxKind.ImportKeyword:
                     return isStartOfDeclaration() || lookAhead(nextTokenIsOpenParenOrLessThanOrDot);
 
-                case SyntaxKind.Identifier:
-                    return isStartOfDeclaration() || isStartOfExpression();
                 case SyntaxKind.ConstKeyword:
                 case SyntaxKind.ExportKeyword:
                     return isStartOfDeclaration();
@@ -6098,6 +6097,9 @@ namespace ts {
                     return isStartOfDeclaration() || !lookAhead(nextTokenIsIdentifierOrKeywordOnSameLine);
 
                 default:
+                    if (isBindingIdentifier()) {
+                        return isStartOfDeclaration() || isStartOfExpression();
+                    }
                     return isStartOfExpression();
             }
         }
@@ -6124,11 +6126,6 @@ namespace ts {
                 case SyntaxKind.LetKeyword:
                     if (isLetDeclaration()) {
                         return parseVariableStatement(getNodePos(), hasPrecedingJSDocComment(), /*decorators*/ undefined, /*modifiers*/ undefined);
-                    }
-                    break;
-                case SyntaxKind.Identifier:
-                    if (lookAhead(() => isDeclaration())) {
-                        return parseAssignDeclareStatement(getNodePos(), hasPrecedingJSDocComment());
                     }
                     break;
                 case SyntaxKind.FunctionKeyword:
@@ -6181,6 +6178,7 @@ namespace ts {
                 case SyntaxKind.AbstractKeyword:
                 case SyntaxKind.StaticKeyword:
                 case SyntaxKind.ReadonlyKeyword:
+                case SyntaxKind.Identifier:
                 case SyntaxKind.GlobalKeyword:
                     if (isStartOfDeclaration()) {
                         return parseDeclaration();
@@ -6264,9 +6262,15 @@ namespace ts {
                         case SyntaxKind.AsKeyword:
                             return parseNamespaceExportDeclaration(pos, hasJSDoc, decorators, modifiers);
                         default:
+                            if (isBindingIdentifier()) {
+                                return parseAssignDeclareStatement(pos, hasJSDoc, decorators, modifiers);
+                            }
                             return parseExportDeclaration(pos, hasJSDoc, decorators, modifiers);
                     }
                 default:
+                    if (isBindingIdentifier()) {
+                        return parseAssignDeclareStatement(getNodePos(), hasJSDoc, decorators, modifiers);
+                    }
                     if (decorators || modifiers) {
                         // We reached this point because we encountered decorators and/or modifiers and assumed a declaration
                         // would follow. For recovery and error reporting purposes, return an incomplete declaration.
@@ -6435,43 +6439,45 @@ namespace ts {
             return withJSDoc(finishNode(node, pos), hasJSDoc);
         }
 
-        function parseAssignDeclareStatement(pos: number, hasJSDoc: boolean): VariableStatement {
+        function parseAssignDeclareStatement(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): VariableStatement {
             const name = parseIdentifierOrPattern(Diagnostics.Private_identifiers_are_not_allowed_in_variable_declarations);
             nextToken(); // finish :=
             const initializer = parseAssignmentExpressionOrHigher();
             const endPosition = getNodePos();
             parseSemicolon();
-            return withJSDoc(
-                finishNode(
-                    factory.createVariableStatement(
-                        /*modifiers*/ undefined,
-                        finishNode(
-                            factory.createVariableDeclarationList(
-                                createNodeArray(
-                                    [
-                                        finishNode(
-                                            factory.createVariableDeclaration(
-                                                name,
-                                                /*exclamationToken*/ undefined,
-                                                /*type*/ undefined,
-                                                initializer
-                                            ),
-                                            pos,
-                                            endPosition
+            const variableStatement = finishNode(
+                factory.createVariableStatement(
+                    modifiers,
+                    finishNode(
+                        factory.createVariableDeclarationList(
+                            createNodeArray(
+                                [
+                                    finishNode(
+                                        factory.createVariableDeclaration(
+                                            name,
+                                            /*exclamationToken*/ undefined,
+                                            /*type*/ undefined,
+                                            initializer
                                         ),
-                                    ],
-                                    pos,
-                                    endPosition
-                                ),
-                                NodeFlags.Const,
+                                        pos,
+                                        endPosition
+                                    ),
+                                ],
+                                pos,
+                                endPosition
                             ),
-                            pos,
-                            endPosition
-                        )
-                    ),
-                    pos,
-                    endPosition
+                            NodeFlags.Const,
+                        ),
+                        pos,
+                        endPosition
+                    )
                 ),
+                pos,
+                endPosition
+            );
+            variableStatement.decorators = decorators;
+            return withJSDoc(
+                variableStatement,
                 hasJSDoc
             );
         }
