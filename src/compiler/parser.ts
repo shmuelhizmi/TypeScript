@@ -3261,12 +3261,7 @@ namespace ts {
             // If we were able to get any potential identifier, check that it is
             // the start of a member declaration
             if (idToken) {
-                return token() === SyntaxKind.OpenParenToken ||
-                    token() === SyntaxKind.LessThanToken ||
-                    token() === SyntaxKind.QuestionToken ||
-                    token() === SyntaxKind.ColonToken ||
-                    token() === SyntaxKind.CommaToken ||
-                    canParseSemicolon();
+                return true; // name type; or name;
             }
             return false;
         }
@@ -3411,7 +3406,7 @@ namespace ts {
                 const dotDotDotToken = parseOptionalToken(SyntaxKind.DotDotDotToken);
                 const name = parseIdentifierName();
                 const questionToken = parseOptionalToken(SyntaxKind.QuestionToken);
-                parseExpected(SyntaxKind.ColonToken);
+                parseOptional(SyntaxKind.ColonToken);
                 const type = parseTupleElementType();
                 const node = factory.createNamedTupleMember(dotDotDotToken, name, questionToken, type);
                 return withJSDoc(finishNode(node, pos), hasJSDoc);
@@ -3868,7 +3863,7 @@ namespace ts {
                 const extendsType = parseTypeWorker(/*noConditionalTypes*/ true);
                 parseExpected(SyntaxKind.QuestionToken);
                 const trueType = parseTypeWorker();
-                parseExpected(SyntaxKind.ColonToken);
+                parseOptional(SyntaxKind.ColonToken);
                 const falseType = parseTypeWorker();
                 return finishNode(factory.createConditionalTypeNode(type, extendsType, trueType, falseType), pos);
             }
