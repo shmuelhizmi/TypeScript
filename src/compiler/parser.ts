@@ -3876,7 +3876,7 @@ namespace ts {
         }
 
         function parseTypeAnnotation(): TypeNode | undefined {
-            return parseOptional(SyntaxKind.ColonToken) ? parseType() : undefined;
+            return (parseOptional(SyntaxKind.ColonToken) || (isStartOfType() && !isStartOfBlock())) ? parseType() : undefined;
         }
 
         // EXPRESSIONS
@@ -6435,16 +6435,40 @@ namespace ts {
             const name = parseIdentifierOrPattern(Diagnostics.Private_identifiers_are_not_allowed_in_variable_declarations);
             nextToken(); // finish :=
             const initializer = parseAssignmentExpressionOrHigher();
+            const endPosition = getNodePos();
             parseSemicolon();
-            return withJSDoc(finishNode(factory.createVariableStatement([], [
+            return withJSDoc(
                 finishNode(
-                        factory.createVariableDeclaration(
-                            name, /*exclamationToken*/ undefined, /*type*/ undefined, initializer
-                        ),
-                        pos,
-                        getNodePos()
+                    factory.createVariableStatement(
+                        /*modifiers*/ undefined,
+                        finishNode(
+                            factory.createVariableDeclarationList(
+                                createNodeArray(
+                                    [
+                                        finishNode(
+                                            factory.createVariableDeclaration(
+                                                name,
+                                                /*exclamationToken*/ undefined,
+                                                /*type*/ undefined,
+                                                initializer
+                                            ),
+                                            pos,
+                                            endPosition
+                                        ),
+                                    ],
+                                    pos,
+                                    endPosition
+                                )
+                            ),
+                            pos,
+                            endPosition
                         )
-            ]), pos, getNodePos()), hasJSDoc);
+                    ),
+                    pos,
+                    endPosition
+                ),
+                hasJSDoc
+            );
         }
 
         function parseFunctionDeclaration(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): FunctionDeclaration {
