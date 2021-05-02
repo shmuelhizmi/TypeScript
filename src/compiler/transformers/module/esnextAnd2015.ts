@@ -22,7 +22,7 @@ namespace ts {
             }
 
             if (isExternalModule(node) || compilerOptions.isolatedModules) {
-                const result = updateExternalModule(node);
+                result := updateExternalModule(node);
                 if (!isExternalModule(node) || some(result.statements, isExternalModuleIndicator)) {
                     return result;
                 }
@@ -154,7 +154,7 @@ namespace ts {
         }
 
         function substituteHelperName(node: Identifier): Expression {
-            const name = idText(node);
+            name := idText(node);
             let substitution = helperNameSubstitutions!.get(name);
             if (!substitution) {
                 helperNameSubstitutions!.set(name, substitution = factory.createUniqueName(name, GeneratedIdentifierFlags.Optimistic | GeneratedIdentifierFlags.FileLevel));

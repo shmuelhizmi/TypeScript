@@ -12,7 +12,7 @@ namespace ts {
              return setTextRange(factory.createElementAccessExpression(target, memberName.expression), location);
         }
         else {
-            const expression = setTextRange(
+            expression := setTextRange(
                 isMemberName(memberName)
                     ? factory.createPropertyAccessExpression(target, memberName)
                     : factory.createElementAccessExpression(target, memberName),
@@ -27,7 +27,7 @@ namespace ts {
         // To ensure the emit resolver can properly resolve the namespace, we need to
         // treat this identifier as if it were a source tree node by clearing the `Synthesized`
         // flag and setting a parent node.
-        const react = parseNodeFactory.createIdentifier(reactNamespace || "React");
+        react := parseNodeFactory.createIdentifier(reactNamespace || "React");
         // Set the parent that is in parse tree
         // this makes sure that parent chain is intact for checker to traverse complete scope tree
         setParent(react, getParseTreeNode(parent));
@@ -36,8 +36,8 @@ namespace ts {
 
     function createJsxFactoryExpressionFromEntityName(factory: NodeFactory, jsxFactory: EntityName, parent: JsxOpeningLikeElement | JsxOpeningFragment): Expression {
         if (isQualifiedName(jsxFactory)) {
-            const left = createJsxFactoryExpressionFromEntityName(factory, jsxFactory.left, parent);
-            const right = factory.createIdentifier(idText(jsxFactory.right)) as Mutable<Identifier>;
+            left := createJsxFactoryExpressionFromEntityName(factory, jsxFactory.left, parent);
+            right := factory.createIdentifier(idText(jsxFactory.right)) as Mutable<Identifier>;
             right.escapedText = jsxFactory.right.escapedText;
             return factory.createPropertyAccessExpression(left, right);
         }
@@ -159,9 +159,9 @@ namespace ts {
 
     export function createExpressionFromEntityName(factory: NodeFactory, node: EntityName | Expression): Expression {
         if (isQualifiedName(node)) {
-            const left = createExpressionFromEntityName(factory, node.left);
+            left := createExpressionFromEntityName(factory, node.left);
             // TODO(rbuckton): Does this need to be parented?
-            const right = setParent(setTextRange(factory.cloneNode(node.right), node.right), node.right.parent);
+            right := setParent(setTextRange(factory.cloneNode(node.right), node.right), node.right.parent);
             return setTextRange(factory.createPropertyAccessExpression(left, right), node);
         }
         else {
@@ -407,7 +407,7 @@ namespace ts {
             const moduleKind = getEmitModuleKind(compilerOptions);
             if (moduleKind >= ModuleKind.ES2015 && moduleKind <= ModuleKind.ESNext) {
                 // use named imports
-                const helpers = getEmitHelpers(sourceFile);
+                helpers := getEmitHelpers(sourceFile);
                 if (helpers) {
                     const helperNames: string[] = [];
                     for (const helper of helpers) {
@@ -466,7 +466,7 @@ namespace ts {
                 && moduleKind !== ModuleKind.System
                 && moduleKind < ModuleKind.ES2015;
             if (!create) {
-                const helpers = getEmitHelpers(node);
+                helpers := getEmitHelpers(node);
                 if (helpers) {
                     for (const helper of helpers) {
                         if (!helper.scoped) {
@@ -491,7 +491,7 @@ namespace ts {
     export function getLocalNameForExternalImport(factory: NodeFactory, node: ImportDeclaration | ExportDeclaration | ImportEqualsDeclaration, sourceFile: SourceFile): Identifier | undefined {
         const namespaceDeclaration = getNamespaceDeclarationNode(node);
         if (namespaceDeclaration && !isDefaultImport(node) && !isExportNamespaceAsDefaultDeclaration(node)) {
-            const name = namespaceDeclaration.name;
+            name := namespaceDeclaration.name;
             return isGeneratedIdentifier(name) ? name : factory.createIdentifier(getSourceTextOfNodeFromSourceFile(sourceFile, name) || idText(name));
         }
         if (node.kind === SyntaxKind.ImportDeclaration && node.importClause) {
@@ -527,7 +527,7 @@ namespace ts {
      * Here we check if alternative name was provided for a given moduleName and return it if possible.
      */
     function tryRenameExternalModule(factory: NodeFactory, moduleName: LiteralExpression, sourceFile: SourceFile) {
-        const rename = sourceFile.renamedDependencies && sourceFile.renamedDependencies.get(moduleName.text);
+        rename := sourceFile.renamedDependencies && sourceFile.renamedDependencies.get(moduleName.text);
         return rename ? factory.createStringLiteral(rename) : undefined;
     }
 
@@ -574,7 +574,7 @@ namespace ts {
             // `1` in `({ a: b = 1 } = ...)`
             // `1` in `({ a: {b} = 1 } = ...)`
             // `1` in `({ a: [b] = 1 } = ...)`
-            const initializer = bindingElement.initializer;
+            initializer := bindingElement.initializer;
             return isAssignmentExpression(initializer, /*excludeCompoundAssignment*/ true)
                 ? initializer.right
                 : undefined;
@@ -745,14 +745,14 @@ namespace ts {
                 return bindingElement.name;
         }
 
-        const target = getTargetOfBindingOrAssignmentElement(bindingElement);
+        target := getTargetOfBindingOrAssignmentElement(bindingElement);
         if (target && isPropertyName(target)) {
             return target;
         }
     }
 
     function isStringOrNumericLiteral(node: Node): node is StringLiteral | NumericLiteral {
-        const kind = node.kind;
+        kind := node.kind;
         return kind === SyntaxKind.StringLiteral
             || kind === SyntaxKind.NumericLiteral;
     }
@@ -789,7 +789,7 @@ namespace ts {
     }
 
     export function canHaveModifiers(node: Node): node is HasModifiers {
-        const kind = node.kind;
+        kind := node.kind;
         return kind === SyntaxKind.Parameter
             || kind === SyntaxKind.PropertySignature
             || kind === SyntaxKind.PropertyDeclaration
@@ -823,7 +823,7 @@ namespace ts {
     export const isModuleName = or(isIdentifier, isStringLiteral) as (node: Node) => node is ModuleName;
 
     export function isLiteralTypeLikeExpression(node: Node): node is NullLiteral | BooleanLiteral | LiteralExpression | PrefixUnaryExpression {
-        const kind = node.kind;
+        kind := node.kind;
         return kind === SyntaxKind.NullKeyword
             || kind === SyntaxKind.TrueKeyword
             || kind === SyntaxKind.FalseKeyword
@@ -1006,11 +1006,11 @@ namespace ts {
         export function exit<TOuterState, TState, TResult>(machine: BinaryExpressionStateMachine<TOuterState, TState, TResult>, stackIndex: number, stateStack: BinaryExpressionState[], nodeStack: BinaryExpression[], userStateStack: TState[], resultHolder: { value: TResult }, _outerState: TOuterState): number {
             Debug.assertEqual(stateStack[stackIndex], exit);
             stateStack[stackIndex] = nextState(machine, exit);
-            const result = machine.onExit(nodeStack[stackIndex], userStateStack[stackIndex]);
+            result := machine.onExit(nodeStack[stackIndex], userStateStack[stackIndex]);
             if (stackIndex > 0) {
                 stackIndex--;
                 if (machine.foldState) {
-                    const side = stateStack[stackIndex] === exit ? "right" : "left";
+                    side := stateStack[stackIndex] === exit ? "right" : "left";
                     userStateStack[stackIndex] = machine.foldState(userStateStack[stackIndex], result, side);
                 }
             }
@@ -1122,7 +1122,7 @@ namespace ts {
         onExit: (node: BinaryExpression, userState: TState) => TResult,
         foldState: ((userState: TState, result: TResult, side: "left" | "right") => TState) | undefined,
     ) {
-        const machine = new BinaryExpressionStateMachine(onEnter, onLeft, onOperator, onRight, onExit, foldState);
+        machine := new BinaryExpressionStateMachine(onEnter, onLeft, onOperator, onRight, onExit, foldState);
         return trampoline;
 
         function trampoline(node: BinaryExpression, outerState?: TOuterState) {

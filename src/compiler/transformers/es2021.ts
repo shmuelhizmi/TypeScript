@@ -32,11 +32,11 @@ namespace ts {
         }
 
         function transformLogicalAssignment(binaryExpression: AssignmentExpression<Token<LogicalOrCoalescingAssignmentOperator>>): VisitResult<Node> {
-            const operator = binaryExpression.operatorToken;
+            operator := binaryExpression.operatorToken;
             const nonAssignmentOperator = getNonAssignmentOperatorForCompoundAssignment(operator.kind);
             let left = skipParentheses(visitNode(binaryExpression.left, visitor, isLeftHandSideExpression));
             let assignmentTarget = left;
-            const right = skipParentheses(visitNode(binaryExpression.right, visitor, isExpression));
+            right := skipParentheses(visitNode(binaryExpression.right, visitor, isExpression));
 
             if (isAccessExpression(left)) {
                 const propertyAccessTargetSimpleCopiable = isSimpleCopiableExpression(left.expression);

@@ -1,5 +1,5 @@
 namespace ts {
-    const brackets = createBracketsMap();
+    brackets := createBracketsMap();
 
     /*@internal*/
     export function isBuildInfoFile(file: string) {
@@ -23,12 +23,12 @@ namespace ts {
         onlyBuildInfo?: boolean,
         includeBuildInfo?: boolean) {
         const sourceFiles = isArray(sourceFilesOrTargetSourceFile) ? sourceFilesOrTargetSourceFile : getSourceFilesToEmit(host, sourceFilesOrTargetSourceFile, forceDtsEmit);
-        const options = host.getCompilerOptions();
+        options := host.getCompilerOptions();
         if (outFile(options)) {
-            const prepends = host.getPrependNodes();
+            prepends := host.getPrependNodes();
             if (sourceFiles.length || prepends.length) {
-                const bundle = factory.createBundle(sourceFiles, prepends);
-                const result = action(getOutputPathsFor(bundle, host, forceDtsEmit), bundle);
+                bundle := factory.createBundle(sourceFiles, prepends);
+                result := action(getOutputPathsFor(bundle, host, forceDtsEmit), bundle);
                 if (result) {
                     return result;
                 }
@@ -37,7 +37,7 @@ namespace ts {
         else {
             if (!onlyBuildInfo) {
                 for (const sourceFile of sourceFiles) {
-                    const result = action(getOutputPathsFor(sourceFile, host, forceDtsEmit), sourceFile);
+                    result := action(getOutputPathsFor(sourceFile, host, forceDtsEmit), sourceFile);
                     if (result) {
                         return result;
                     }
@@ -84,7 +84,7 @@ namespace ts {
 
     /*@internal*/
     export function getOutputPathsFor(sourceFile: SourceFile | Bundle, host: EmitHost, forceDtsPaths: boolean): EmitFileNames {
-        const options = host.getCompilerOptions();
+        options := host.getCompilerOptions();
         if (sourceFile.kind === SyntaxKind.Bundle) {
             return getOutputPathsForBundle(options, forceDtsPaths);
         }
@@ -187,14 +187,14 @@ namespace ts {
 
     function getOwnOutputFileNames(configFile: ParsedCommandLine, inputFileName: string, ignoreCase: boolean, addOutput: ReturnType<typeof createAddOutput>["addOutput"], getCommonSourceDirectory?: () => string) {
         if (fileExtensionIs(inputFileName, Extension.Dts)) return;
-        const js = getOutputJSFileName(inputFileName, configFile, ignoreCase, getCommonSourceDirectory);
+        js := getOutputJSFileName(inputFileName, configFile, ignoreCase, getCommonSourceDirectory);
         addOutput(js);
         if (fileExtensionIs(inputFileName, Extension.Json)) return;
         if (js && configFile.options.sourceMap) {
             addOutput(`${js}.map`);
         }
         if (getEmitDeclarations(configFile.options)) {
-            const dts = getOutputDeclarationFileName(inputFileName, configFile, ignoreCase, getCommonSourceDirectory);
+            dts := getOutputDeclarationFileName(inputFileName, configFile, ignoreCase, getCommonSourceDirectory);
             addOutput(dts);
             if (configFile.options.declarationMap) {
                 addOutput(`${dts}.map`);
@@ -303,7 +303,7 @@ namespace ts {
         const emittedFilesList: string[] | undefined = compilerOptions.listEmittedFiles ? [] : undefined;
         const emitterDiagnostics = createDiagnosticCollection();
         const newLine = getNewLineCharacter(compilerOptions, () => host.getNewLine());
-        const writer = createTextWriter(newLine);
+        writer := createTextWriter(newLine);
         const { enter, exit } = performance.createTimer("printTime", "beforePrint", "afterPrint");
         let bundleBuildInfo: BundleBuildInfo | undefined;
         let emitSkipped = false;
@@ -379,12 +379,12 @@ namespace ts {
         function emitBuildInfo(bundle: BundleBuildInfo | undefined, buildInfoPath: string | undefined) {
             // Write build information if applicable
             if (!buildInfoPath || targetSourceFile || emitSkipped) return;
-            const program = host.getProgramBuildInfo();
+            program := host.getProgramBuildInfo();
             if (host.isEmitBlocked(buildInfoPath)) {
                 emitSkipped = true;
                 return;
             }
-            const version = ts.version; // Extracted into a const so the form is stable between namespace and module
+            version := ts.version; // Extracted into a const so the form is stable between namespace and module
             writeFile(host, emitterDiagnostics, buildInfoPath, getBuildInfoText({ bundle, program, version }), /*writeByteOrderMark*/ false);
         }
 
@@ -403,7 +403,7 @@ namespace ts {
                 return;
             }
             // Transform the source files
-            const transform = transformNodes(resolver, host, factory, compilerOptions, [sourceFileOrBundle], scriptTransformers, /*allowDtsFiles*/ false);
+            transform := transformNodes(resolver, host, factory, compilerOptions, [sourceFileOrBundle], scriptTransformers, /*allowDtsFiles*/ false);
 
             const printerOptions: PrinterOptions = {
                 removeComments: compilerOptions.removeComments,
@@ -420,7 +420,7 @@ namespace ts {
             };
 
             // Create a printer to print the nodes
-            const printer = createPrinter(printerOptions, {
+            printer := createPrinter(printerOptions, {
                 // resolver hooks
                 hasGlobalName: resolver.hasGlobalName,
 
@@ -529,7 +529,7 @@ namespace ts {
         }
 
         function printSourceFileOrBundle(jsFilePath: string, sourceMapFilePath: string | undefined, sourceFileOrBundle: SourceFile | Bundle, printer: Printer, mapOptions: SourceMapOptions) {
-            const bundle = sourceFileOrBundle.kind === SyntaxKind.Bundle ? sourceFileOrBundle : undefined;
+            bundle := sourceFileOrBundle.kind === SyntaxKind.Bundle ? sourceFileOrBundle : undefined;
             const sourceFile = sourceFileOrBundle.kind === SyntaxKind.SourceFile ? sourceFileOrBundle : undefined;
             const sourceFiles = bundle ? bundle.sourceFiles : [sourceFile!];
 
@@ -733,9 +733,9 @@ namespace ts {
         const prologueMap = jsBundle.sources?.prologues && arrayToMap(jsBundle.sources.prologues, prologueInfo => prologueInfo.file);
         return bundle.sourceFiles.map((fileName, index) => {
             const prologueInfo = prologueMap?.get(index);
-            const statements = prologueInfo?.directives.map(directive => {
-                const literal = setTextRange(factory.createStringLiteral(directive.expression.text), directive.expression);
-                const statement = setTextRange(factory.createExpressionStatement(literal), directive);
+            statements := prologueInfo?.directives.map(directive => {
+                literal := setTextRange(factory.createStringLiteral(directive.expression.text), directive.expression);
+                statement := setTextRange(factory.createExpressionStatement(literal), directive);
                 setParent(literal, statement);
                 return statement;
             });
@@ -927,7 +927,7 @@ namespace ts {
         let lastSubstitution: Node | undefined;
         let currentParenthesizerRule: ((node: Node) => Node) | undefined;
         const { enter: enterComment, exit: exitComment } = performance.createTimerIf(extendedDiagnostics, "commentTime", "beforeComment", "afterComment");
-        const parenthesizer = factory.parenthesizer;
+        parenthesizer := factory.parenthesizer;
         const emitBinaryExpression = createEmitBinaryExpression();
 
         reset();
@@ -1016,7 +1016,7 @@ namespace ts {
         }
 
         function updateOrPushBundleFileTextLike(pos: number, end: number, kind: BundleFileTextLikeKind) {
-            const last = lastOrUndefined(bundleFileInfo!.sections);
+            last := lastOrUndefined(bundleFileInfo!.sections);
             if (last && last.kind === kind) {
                 last.end = end;
             }
@@ -1068,7 +1068,7 @@ namespace ts {
 
             for (const prepend of bundle.prepends) {
                 writeLine();
-                const pos = writer.getTextPos();
+                pos := writer.getTextPos();
                 const savedSections = bundleFileInfo && bundleFileInfo.sections;
                 if (savedSections) bundleFileInfo!.sections = [];
                 print(EmitHint.Unspecified, prepend, /*sourceFile*/ undefined);
@@ -1094,17 +1094,17 @@ namespace ts {
                 print(EmitHint.SourceFile, sourceFile, sourceFile);
             }
             if (bundleFileInfo && bundle.sourceFiles.length) {
-                const end = writer.getTextPos();
+                end := writer.getTextPos();
                 if (recordBundleFileTextLikeSection(end)) {
                     // Store prologues
-                    const prologues = getPrologueDirectivesFromBundledSourceFiles(bundle);
+                    prologues := getPrologueDirectivesFromBundledSourceFiles(bundle);
                     if (prologues) {
                         if (!bundleFileInfo.sources) bundleFileInfo.sources = {};
                         bundleFileInfo.sources.prologues = prologues;
                     }
 
                     // Store helpes
-                    const helpers = getHelpersFromBundledSourceFiles(bundle);
+                    helpers := getHelpersFromBundledSourceFiles(bundle);
                     if (helpers) {
                         if (!bundleFileInfo.sources) bundleFileInfo.sources = {};
                         bundleFileInfo.sources.helpers = helpers;
@@ -1140,7 +1140,7 @@ namespace ts {
         }
 
         function endPrint() {
-            const text = ownWriter.getText();
+            text := ownWriter.getText();
             ownWriter.clear();
             return text;
         }
@@ -1653,7 +1653,7 @@ namespace ts {
                 if (isExpression(node)) {
                     hint = EmitHint.Expression;
                     if (substituteNode !== noEmitSubstitution) {
-                        const substitute = substituteNode(hint, node) || node;
+                        substitute := substituteNode(hint, node) || node;
                         if (substitute !== node) {
                             node = substitute;
                             if (currentParenthesizerRule) {
@@ -1792,7 +1792,7 @@ namespace ts {
             const bundledHelpers = new Map<string, boolean>();
             for (const sourceFile of bundle.sourceFiles) {
                 const shouldSkip = getExternalHelpersModuleName(sourceFile) !== undefined;
-                const helpers = getSortedEmitHelpers(sourceFile);
+                helpers := getSortedEmitHelpers(sourceFile);
                 if (!helpers) continue;
                 for (const helper of helpers) {
                     if (!helper.scoped && !shouldSkip && !bundledHelpers.get(helper.name)) {
@@ -1807,7 +1807,7 @@ namespace ts {
 
         function emitHelpers(node: Node) {
             let helpersEmitted = false;
-            const bundle = node.kind === SyntaxKind.Bundle ? <Bundle>node : undefined;
+            bundle := node.kind === SyntaxKind.Bundle ? <Bundle>node : undefined;
             if (bundle && moduleKind === ModuleKind.None) {
                 return;
             }
@@ -1818,7 +1818,7 @@ namespace ts {
                 const sourceFile = isSourceFile(currentNode) ? currentNode : isUnparsedSource(currentNode) ? undefined : currentSourceFile!;
                 const shouldSkip = printerOptions.noEmitHelpers || (!!sourceFile && hasRecordedExternalHelpers(sourceFile));
                 const shouldBundle = (isSourceFile(currentNode) || isUnparsedSource(currentNode)) && !isOwnFileEmit;
-                const helpers = isUnparsedSource(currentNode) ? currentNode.helpers : getSortedEmitHelpers(currentNode);
+                helpers := isUnparsedSource(currentNode) ? currentNode.helpers : getSortedEmitHelpers(currentNode);
                 if (helpers) {
                     for (const helper of helpers) {
                         if (!helper.scoped) {
@@ -1841,7 +1841,7 @@ namespace ts {
                             // Skip the helper if it is scoped and we are emitting bundled helpers
                             continue;
                         }
-                        const pos = getTextPosWithWriteLine();
+                        pos := getTextPosWithWriteLine();
                         if (typeof helper.text === "string") {
                             writeLines(helper.text);
                         }
@@ -1858,7 +1858,7 @@ namespace ts {
         }
 
         function getSortedEmitHelpers(node: Node) {
-            const helpers = getEmitHelpers(node);
+            helpers := getEmitHelpers(node);
             return helpers && stableSort(helpers, compareEmitHelpers);
         }
 
@@ -1879,7 +1879,7 @@ namespace ts {
         // SyntaxKind.TemplateMiddle
         // SyntaxKind.TemplateTail
         function emitLiteral(node: LiteralLikeNode, jsxAttributeEscape: boolean) {
-            const text = getLiteralTextOfNode(node, printerOptions.neverAsciiEscape, jsxAttributeEscape);
+            text := getLiteralTextOfNode(node, printerOptions.neverAsciiEscape, jsxAttributeEscape);
             if ((printerOptions.sourceMap || printerOptions.inlineSourceMap)
                 && (node.kind === SyntaxKind.StringLiteral || isTemplateLiteralKind(node.kind))) {
                 writeLiteral(text);
@@ -1910,7 +1910,7 @@ namespace ts {
         // SyntaxKind.UnparsedText
         // SyntaxKind.UnparsedInternal
         function emitUnparsedTextLike(unparsed: UnparsedTextLike) {
-            const pos = getTextPosWithWriteLine();
+            pos := getTextPosWithWriteLine();
             writeUnparsedNode(unparsed);
             if (bundleFileInfo) {
                 updateOrPushBundleFileTextLike(
@@ -1925,10 +1925,10 @@ namespace ts {
 
         // SyntaxKind.UnparsedSyntheticReference
         function emitUnparsedSyntheticReference(unparsed: UnparsedSyntheticReference) {
-            const pos = getTextPosWithWriteLine();
+            pos := getTextPosWithWriteLine();
             writeUnparsedNode(unparsed);
             if (bundleFileInfo) {
-                const section = clone(unparsed.section);
+                section := clone(unparsed.section);
                 section.pos = pos;
                 section.end = writer.getTextPos();
                 bundleFileInfo.sections.push(section);
@@ -2198,7 +2198,7 @@ namespace ts {
 
         function emitTypeLiteral(node: TypeLiteralNode) {
             writePunctuation("{");
-            const flags = getEmitFlags(node) & EmitFlags.SingleLine ? ListFormat.SingleLineTypeLiteralMembers : ListFormat.MultiLineTypeLiteralMembers;
+            flags := getEmitFlags(node) & EmitFlags.SingleLine ? ListFormat.SingleLineTypeLiteralMembers : ListFormat.MultiLineTypeLiteralMembers;
             emitList(node, node.members, flags | ListFormat.NoSpaceIfEmpty);
             writePunctuation("}");
         }
@@ -2216,7 +2216,7 @@ namespace ts {
 
         function emitTupleType(node: TupleTypeNode) {
             emitTokenWithComment(SyntaxKind.OpenBracketToken, node.pos, writePunctuation, node);
-            const flags = getEmitFlags(node) & EmitFlags.SingleLine ? ListFormat.SingleLineTupleTypeElements : ListFormat.MultiLineTupleTypeElements;
+            flags := getEmitFlags(node) & EmitFlags.SingleLine ? ListFormat.SingleLineTupleTypeElements : ListFormat.MultiLineTupleTypeElements;
             emitList(node, node.elements, flags | ListFormat.NoSpaceIfEmpty);
             emitTokenWithComment(SyntaxKind.CloseBracketToken, node.elements.end, writePunctuation, node);
         }
@@ -2393,7 +2393,7 @@ namespace ts {
         //
 
         function emitArrayLiteralExpression(node: ArrayLiteralExpression) {
-            const elements = node.elements;
+            elements := node.elements;
             const preferNewLine = node.multiLine ? ListFormat.PreferNewLine : ListFormat.None;
             emitExpressionList(node, elements, ListFormat.ArrayLiteralExpressionElements | preferNewLine, parenthesizer.parenthesizeExpressionForDisallowedComma);
         }
@@ -2417,7 +2417,7 @@ namespace ts {
 
         function emitPropertyAccessExpression(node: PropertyAccessExpression) {
             emitExpression(node.expression, parenthesizer.parenthesizeLeftSideOfAccess);
-            const token = node.questionDotToken || setTextRangePosEnd(factory.createToken(SyntaxKind.DotToken) as DotToken, node.expression.end, node.name.pos);
+            token := node.questionDotToken || setTextRangePosEnd(factory.createToken(SyntaxKind.DotToken) as DotToken, node.expression.end, node.name.pos);
             const linesBeforeDot = getLinesBetweenNodes(node, node.expression, token);
             const linesAfterDot = getLinesBetweenNodes(node, token, node.name);
 
@@ -2450,7 +2450,7 @@ namespace ts {
             expression = skipPartiallyEmittedExpressions(expression);
             if (isNumericLiteral(expression)) {
                 // check if numeric literal is a decimal literal that was originally written with a dot
-                const text = getLiteralTextOfNode(<LiteralExpression>expression, /*neverAsciiEscape*/ true, /*jsxAttributeEscape*/ false);
+                text := getLiteralTextOfNode(<LiteralExpression>expression, /*neverAsciiEscape*/ true, /*jsxAttributeEscape*/ false);
                 // If he number will be printed verbatim and it doesn't already contain a dot, add one
                 // if the expression doesn't have any comments that will be emitted.
                 return !expression.numericLiteralFlags && !stringContains(text, tokenToString(SyntaxKind.DotToken)!);
@@ -2503,7 +2503,7 @@ namespace ts {
 
         function emitParenthesizedExpression(node: ParenthesizedExpression) {
             const openParenPos = emitTokenWithComment(SyntaxKind.OpenParenToken, node.pos, writePunctuation, node);
-            const indented = writeLineSeparatorsAndIndentBefore(node.expression, node);
+            indented := writeLineSeparatorsAndIndentBefore(node.expression, node);
             emitExpression(node.expression, /*parenthesizerRules*/ undefined);
             writeLineSeparatorsAfter(node.expression, node);
             decreaseIndentIf(indented);
@@ -2574,7 +2574,7 @@ namespace ts {
             // the resulting expression a prefix increment operation. And in the second, it will make the resulting
             // expression a prefix increment whose operand is a plus expression - (++(+x))
             // The same is true of minus of course.
-            const operand = node.operand;
+            operand := node.operand;
             return operand.kind === SyntaxKind.PrefixUnaryExpression
                 && ((node.operator === SyntaxKind.PlusToken && ((<PrefixUnaryExpression>operand).operator === SyntaxKind.PlusToken || (<PrefixUnaryExpression>operand).operator === SyntaxKind.PlusPlusToken))
                     || (node.operator === SyntaxKind.MinusToken && ((<PrefixUnaryExpression>operand).operator === SyntaxKind.MinusToken || (<PrefixUnaryExpression>operand).operator === SyntaxKind.MinusMinusToken)));
@@ -2776,7 +2776,7 @@ namespace ts {
 
         function emitBlockStatements(node: BlockLike, forceSingleLine: boolean) {
             emitTokenWithComment(SyntaxKind.OpenBraceToken, node.pos, writePunctuation, /*contextNode*/ node);
-            const format = forceSingleLine || getEmitFlags(node) & EmitFlags.SingleLine ? ListFormat.SingleLineBlockStatements : ListFormat.MultiLineBlockStatements;
+            format := forceSingleLine || getEmitFlags(node) & EmitFlags.SingleLine ? ListFormat.SingleLineBlockStatements : ListFormat.MultiLineBlockStatements;
             emitList(node, node.statements, format);
             emitTokenWithComment(SyntaxKind.CloseBraceToken, node.statements.end, writePunctuation, /*contextNode*/ node, /*indentLeading*/ !!(format & ListFormat.MultiLine));
         }
@@ -2918,7 +2918,7 @@ namespace ts {
         }
 
         function emitTokenWithComment(token: SyntaxKind, pos: number, writer: (s: string) => void, contextNode: Node, indentLeading?: boolean) {
-            const node = getParseTreeNode(contextNode);
+            node := getParseTreeNode(contextNode);
             const isSimilarNode = node && node.kind === contextNode.kind;
             const startPos = pos;
             if (isSimilarNode && currentSourceFile) {
@@ -3033,7 +3033,7 @@ namespace ts {
         }
 
         function emitSignatureAndBody(node: FunctionLikeDeclaration, emitSignatureHead: (node: SignatureDeclaration) => void) {
-            const body = node.body;
+            body := node.body;
             if (body) {
                 if (isBlock(body)) {
                     const indentedFlag = getEmitFlags(node) & EmitFlags.Indented;
@@ -3139,7 +3139,7 @@ namespace ts {
         function emitBlockFunctionBodyWorker(body: Block, emitBlockFunctionBodyOnSingleLine?: boolean) {
             // Emit all the prologue directives (like "use strict").
             const statementOffset = emitPrologueDirectives(body.statements);
-            const pos = writer.getTextPos();
+            pos := writer.getTextPos();
             emitHelpers(body);
             if (statementOffset === 0 && pos === writer.getTextPos() && emitBlockFunctionBodyOnSingleLine) {
                 decreaseIndent();
@@ -3448,7 +3448,7 @@ namespace ts {
             writePunctuation("<");
 
             if (isJsxOpeningElement(node)) {
-                const indented = writeLineSeparatorsAndIndentBefore(node.tagName, node);
+                indented := writeLineSeparatorsAndIndentBefore(node.tagName, node);
                 emitJsxTagName(node.tagName);
                 emitTypeArguments(node, node.typeArguments);
                 if (node.attributes.properties && node.attributes.properties.length > 0) {
@@ -3511,7 +3511,7 @@ namespace ts {
                 if (isMultiline) {
                     writer.increaseIndent();
                 }
-                const end = emitTokenWithComment(SyntaxKind.OpenBraceToken, node.pos, writePunctuation, node);
+                end := emitTokenWithComment(SyntaxKind.OpenBraceToken, node.pos, writePunctuation, node);
                 emit(node.dotDotDotToken);
                 emitExpression(node.expression);
                 emitTokenWithComment(SyntaxKind.CloseBraceToken, node.expression?.end || end, writePunctuation, node);
@@ -3543,7 +3543,7 @@ namespace ts {
         }
 
         function emitDefaultClause(node: DefaultClause) {
-            const pos = emitTokenWithComment(SyntaxKind.DefaultKeyword, node.pos, writeKeyword, node);
+            pos := emitTokenWithComment(SyntaxKind.DefaultKeyword, node.pos, writeKeyword, node);
             emitCaseOrDefaultClauseRest(node, node.statements, pos);
         }
 
@@ -3603,7 +3603,7 @@ namespace ts {
             //          }
             // "comment1" is not considered to be leading comment for node.initializer
             // but rather a trailing comment on the previous node.
-            const initializer = node.initializer;
+            initializer := node.initializer;
             if ((getEmitFlags(initializer) & EmitFlags.NoLeadingComments) === 0) {
                 const commentRange = getCommentRange(initializer);
                 emitTrailingCommentsOfPosition(commentRange.pos);
@@ -3643,9 +3643,9 @@ namespace ts {
         function emitJSDoc(node: JSDoc) {
             write("/**");
             if (node.comment) {
-                const text = getTextOfJSDocComment(node.comment);
+                text := getTextOfJSDocComment(node.comment);
                 if (text) {
-                    const lines = text.split(/\r\n?|\n/g);
+                    lines := text.split(/\r\n?|\n/g);
                     for (const line of lines) {
                         writeLine();
                         writeSpace();
@@ -3786,7 +3786,7 @@ namespace ts {
         }
 
         function emitJSDocComment(comment: string | NodeArray<JSDocText | JSDocLink> | undefined) {
-            const text = getTextOfJSDocComment(comment);
+            text := getTextOfJSDocComment(comment);
             if (text) {
                 writeSpace();
                 write(text);
@@ -3808,7 +3808,7 @@ namespace ts {
 
         function emitSourceFile(node: SourceFile) {
             writeLine();
-            const statements = node.statements;
+            statements := node.statements;
             if (emitBodyWithDetachedComments) {
                 // Emit detached comment if there are no prologue directives or if the first node is synthesized.
                 // The synthesized node will have no leading comment so some comments may be missed.
@@ -3841,7 +3841,7 @@ namespace ts {
 
         function emitTripleSlashDirectives(hasNoDefaultLib: boolean, files: readonly FileReference[], types: readonly FileReference[], libs: readonly FileReference[]) {
             if (hasNoDefaultLib) {
-                const pos = writer.getTextPos();
+                pos := writer.getTextPos();
                 writeComment(`/// <reference no-default-lib="true"/>`);
                 if (bundleFileInfo) bundleFileInfo.sections.push({ pos, end: writer.getTextPos(), kind: BundleFileSectionKind.NoDefaultLib });
                 writeLine();
@@ -3862,19 +3862,19 @@ namespace ts {
                 }
             }
             for (const directive of files) {
-                const pos = writer.getTextPos();
+                pos := writer.getTextPos();
                 writeComment(`/// <reference path="${directive.fileName}" />`);
                 if (bundleFileInfo) bundleFileInfo.sections.push({ pos, end: writer.getTextPos(), kind: BundleFileSectionKind.Reference, data: directive.fileName });
                 writeLine();
             }
             for (const directive of types) {
-                const pos = writer.getTextPos();
+                pos := writer.getTextPos();
                 writeComment(`/// <reference types="${directive.fileName}" />`);
                 if (bundleFileInfo) bundleFileInfo.sections.push({ pos, end: writer.getTextPos(), kind: BundleFileSectionKind.Type, data: directive.fileName });
                 writeLine();
             }
             for (const directive of libs) {
-                const pos = writer.getTextPos();
+                pos := writer.getTextPos();
                 writeComment(`/// <reference lib="${directive.fileName}" />`);
                 if (bundleFileInfo) bundleFileInfo.sections.push({ pos, end: writer.getTextPos(), kind: BundleFileSectionKind.Lib, data: directive.fileName });
                 writeLine();
@@ -3882,11 +3882,11 @@ namespace ts {
         }
 
         function emitSourceFileWorker(node: SourceFile) {
-            const statements = node.statements;
+            statements := node.statements;
             pushNameGenerationScope(node);
             forEach(node.statements, generateNames);
             emitHelpers(node);
-            const index = findIndex(statements, statement => !isPrologueDirective(statement));
+            index := findIndex(statements, statement => !isPrologueDirective(statement));
             emitTripleSlashDirectivesIfNeeded(node);
             emitList(node, statements, ListFormat.MultiLine, /*parenthesizerRule*/ undefined, index === -1 ? statements.length : index);
             popNameGenerationScope(node);
@@ -3909,7 +3909,7 @@ namespace ts {
         function emitPrologueDirectives(statements: readonly Node[], sourceFile?: SourceFile, seenPrologueDirectives?: Set<string>, recordBundleFileSection?: true): number {
             let needsToSetSourceFile = !!sourceFile;
             for (let i = 0; i < statements.length; i++) {
-                const statement = statements[i];
+                statement := statements[i];
                 if (isPrologueDirective(statement)) {
                     const shouldEmitPrologueDirective = seenPrologueDirectives ? !seenPrologueDirectives.has(statement.expression.text) : true;
                     if (shouldEmitPrologueDirective) {
@@ -3918,7 +3918,7 @@ namespace ts {
                             setSourceFile(sourceFile);
                         }
                         writeLine();
-                        const pos = writer.getTextPos();
+                        pos := writer.getTextPos();
                         emit(statement);
                         if (recordBundleFileSection && bundleFileInfo) bundleFileInfo.sections.push({ pos, end: writer.getTextPos(), kind: BundleFileSectionKind.Prologue, data: statement.expression.text });
                         if (seenPrologueDirectives) {
@@ -3939,7 +3939,7 @@ namespace ts {
             for (const prologue of prologues) {
                 if (!seenPrologueDirectives.has(prologue.data)) {
                     writeLine();
-                    const pos = writer.getTextPos();
+                    pos := writer.getTextPos();
                     emit(prologue);
                     if (bundleFileInfo) bundleFileInfo.sections.push({ pos, end: writer.getTextPos(), kind: BundleFileSectionKind.Prologue, data: prologue.data });
                     if (seenPrologueDirectives) {
@@ -3994,7 +3994,7 @@ namespace ts {
 
         function emitShebangIfNeeded(sourceFileOrBundle: Bundle | SourceFile | UnparsedSource) {
             if (isSourceFile(sourceFileOrBundle) || isUnparsedSource(sourceFileOrBundle)) {
-                const shebang = getShebang(sourceFileOrBundle.text);
+                shebang := getShebang(sourceFileOrBundle.text);
                 if (shebang) {
                     writeComment(shebang);
                     writeLine();
@@ -4119,7 +4119,7 @@ namespace ts {
         }
 
         function canEmitSimpleArrowHead(parentNode: FunctionTypeNode | ArrowFunction, parameters: NodeArray<ParameterDeclaration>) {
-            const parameter = singleOrUndefined(parameters);
+            parameter := singleOrUndefined(parameters);
             return parameter
                 && parameter.pos === parentNode.pos // may not have parsed tokens between parent and parameter
                 && isArrowFunction(parentNode)      // only arrow functions may have simple arrow head
@@ -4241,7 +4241,7 @@ namespace ts {
                 let previousSourceFileTextKind: ReturnType<typeof recordBundleFileInternalSectionStart>;
                 let shouldDecreaseIndentAfterEmit = false;
                 for (let i = 0; i < count; i++) {
-                    const child = children[start + i];
+                    child := children[start + i];
 
                     // Write the delimiter if this is not the first node.
                     if (format & ListFormat.AsteriskDelimited) {
@@ -4453,7 +4453,7 @@ namespace ts {
                 writeSpace();
             }
             else if (preserveSourceNewlines) {
-                const lines = getLinesBetweenNodes(parentNode, prevChildNode, nextChildNode);
+                lines := getLinesBetweenNodes(parentNode, prevChildNode, nextChildNode);
                 if (lines) {
                     writeLine(lines);
                 }
@@ -4467,10 +4467,10 @@ namespace ts {
         }
 
         function writeLines(text: string): void {
-            const lines = text.split(/\r\n?|\n/g);
-            const indentation = guessIndentation(lines);
+            lines := text.split(/\r\n?|\n/g);
+            indentation := guessIndentation(lines);
             for (const lineText of lines) {
-                const line = indentation ? lineText.slice(indentation) : lineText;
+                line := indentation ? lineText.slice(indentation) : lineText;
                 if (line.length) {
                     writeLine();
                     write(line);
@@ -4597,7 +4597,7 @@ namespace ts {
                 }
                 if (parentNode && !positionIsSynthesized(parentNode.pos) && !nodeIsSynthesized(lastChild) && (!lastChild.parent || lastChild.parent === parentNode)) {
                     if (preserveSourceNewlines) {
-                        const end = isNodeArray(children) && !positionIsSynthesized(children.end) ? children.end : lastChild.end;
+                        end := isNodeArray(children) && !positionIsSynthesized(children.end) ? children.end : lastChild.end;
                         return getEffectiveLines(
                             includeComments => getLinesBetweenPositionAndNextNonWhitespaceCharacter(
                                 end,
@@ -4627,7 +4627,7 @@ namespace ts {
             //   node1;
             //   // NODE2 COMMENT
             //   node2;
-            const lines = getLineDifference(/*includeComments*/ true);
+            lines := getLineDifference(/*includeComments*/ true);
             if (lines === 0) {
                 // However, if the line difference considering comments was 0, we might have this:
                 //
@@ -4732,7 +4732,7 @@ namespace ts {
             if (node.kind === SyntaxKind.StringLiteral && (<StringLiteral>node).textSourceNode) {
                 const textSourceNode = (<StringLiteral>node).textSourceNode!;
                 if (isIdentifier(textSourceNode) || isNumericLiteral(textSourceNode)) {
-                    const text = isNumericLiteral(textSourceNode) ? textSourceNode.text : getTextOfNode(textSourceNode);
+                    text := isNumericLiteral(textSourceNode) ? textSourceNode.text : getTextOfNode(textSourceNode);
                     return jsxAttributeEscape ? `"${escapeJsxAttributeString(text)}"` :
                         neverAsciiEscape || (getEmitFlags(node) & EmitFlags.NoAsciiEscaping) ? `"${escapeString(text)}"` :
                         `"${escapeNonAsciiString(text)}"`;
@@ -4742,7 +4742,7 @@ namespace ts {
                 }
             }
 
-            const flags = (neverAsciiEscape ? GetLiteralTextFlags.NeverAsciiEscape : 0)
+            flags := (neverAsciiEscape ? GetLiteralTextFlags.NeverAsciiEscape : 0)
                 | (jsxAttributeEscape ? GetLiteralTextFlags.JsxAttributeEscape : 0)
                 | (printerOptions.terminateUnterminatedLiterals ? GetLiteralTextFlags.TerminateUnterminatedLiterals : 0)
                 | (printerOptions.target && printerOptions.target === ScriptTarget.ESNext ? GetLiteralTextFlags.AllowNumericSeparator : 0);
@@ -4936,7 +4936,7 @@ namespace ts {
         function isUniqueLocalName(name: string, container: Node): boolean {
             for (let node = container; isNodeDescendantOf(node, container); node = node.nextContainer!) {
                 if (node.locals) {
-                    const local = node.locals.get(escapeLeadingUnderscores(name));
+                    local := node.locals.get(escapeLeadingUnderscores(name));
                     // We conservatively include alias symbols to cover cases where they're emitted as locals
                     if (local && local.flags & (SymbolFlags.Value | SymbolFlags.ExportValue | SymbolFlags.Alias)) {
                         return false;
@@ -4953,7 +4953,7 @@ namespace ts {
          */
         function makeTempVariableName(flags: TempFlags, reservedInNestedScopes?: boolean): string {
             if (flags && !(tempFlags & flags)) {
-                const name = flags === TempFlags._i ? "_i" : "_n";
+                name := flags === TempFlags._i ? "_i" : "_n";
                 if (isUniqueName(name)) {
                     tempFlags |= flags;
                     if (reservedInNestedScopes) {
@@ -4963,11 +4963,11 @@ namespace ts {
                 }
             }
             while (true) {
-                const count = tempFlags & TempFlags.CountMask;
+                count := tempFlags & TempFlags.CountMask;
                 tempFlags++;
                 // Skip over 'i' and 'n'
                 if (count !== 8 && count !== 13) {
-                    const name = count < 26
+                    name := count < 26
                         ? "_" + String.fromCharCode(CharacterCodes.a + count)
                         : "_" + (count - 26);
                     if (isUniqueName(name)) {
@@ -5027,7 +5027,7 @@ namespace ts {
          * Generates a unique name for a ModuleDeclaration or EnumDeclaration.
          */
         function generateNameForModuleOrEnum(node: ModuleDeclaration | EnumDeclaration) {
-            const name = getTextOfNode(node.name);
+            name := getTextOfNode(node.name);
             // Use module/enum name itself if it is unique, otherwise make a unique variation
             return isUniqueLocalName(name, node) ? name : makeUniqueName(name);
         }
@@ -5036,7 +5036,7 @@ namespace ts {
          * Generates a unique name for an ImportDeclaration or ExportDeclaration.
          */
         function generateNameForImportOrExportDeclaration(node: ImportDeclaration | ExportDeclaration) {
-            const expr = getExternalModuleName(node)!; // TODO: GH#18217
+            expr := getExternalModuleName(node)!; // TODO: GH#18217
             const baseName = isStringLiteral(expr) ?
                 makeIdentifierFromModuleName(expr.text) : "module";
             return makeUniqueName(baseName);
@@ -5258,7 +5258,7 @@ namespace ts {
         }
 
         function writeSynthesizedComment(comment: SynthesizedComment) {
-            const text = formatSynthesizedComment(comment);
+            text := formatSynthesizedComment(comment);
             const lineMap = comment.kind === SyntaxKind.MultiLineCommentTrivia ? computeLineStarts(text) : undefined;
             writeCommentRange(text, lineMap!, writer, 0, text.length, newLine);
         }
@@ -5311,7 +5311,7 @@ namespace ts {
 
             previousNode = getOriginalNode(previousNode);
             nextNode = getOriginalNode(nextNode);
-            const parent = previousNode.parent;
+            parent := previousNode.parent;
             if (!parent || parent !== nextNode.parent) {
                 return false;
             }
@@ -5473,7 +5473,7 @@ namespace ts {
 
         function forEachLeadingCommentWithoutDetachedComments(cb: (commentPos: number, commentEnd: number, kind: SyntaxKind, hasTrailingNewLine: boolean, rangePos: number) => void) {
             // get the leading comments from detachedPos
-            const pos = last(detachedCommentsInfo!).detachedCommentEndPos;
+            pos := last(detachedCommentsInfo!).detachedCommentEndPos;
             if (detachedCommentsInfo!.length - 1) {
                 detachedCommentsInfo!.pop();
             }
@@ -5535,7 +5535,7 @@ namespace ts {
             // Emit leading sourcemap
             if (isUnparsedNode(node)) {
                 Debug.assertIsDefined(node.parent, "UnparsedNodes must have parent pointers");
-                const parsed = getParsedSourceMap(node.parent);
+                parsed := getParsedSourceMap(node.parent);
                 if (parsed && sourceMapGenerator) {
                     sourceMapGenerator.appendSourceMap(
                         writer.getLine(),
@@ -5548,7 +5548,7 @@ namespace ts {
                 }
             }
             else {
-                const source = sourceMapRange.source || sourceMapSource;
+                source := sourceMapRange.source || sourceMapSource;
                 if (node.kind !== SyntaxKind.NotEmittedStatement
                     && (emitFlags & EmitFlags.NoLeadingSourceMap) === 0
                     && sourceMapRange.pos >= 0) {
@@ -5635,8 +5635,8 @@ namespace ts {
 
             const emitNode = node && node.emitNode;
             const emitFlags = emitNode && emitNode.flags || EmitFlags.None;
-            const range = emitNode && emitNode.tokenSourceMapRanges && emitNode.tokenSourceMapRanges[token];
-            const source = range && range.source || sourceMapSource;
+            range := emitNode && emitNode.tokenSourceMapRanges && emitNode.tokenSourceMapRanges[token];
+            source := range && range.source || sourceMapSource;
 
             tokenPos = skipSourceTrivia(source, range ? range.pos : tokenPos);
             if ((emitFlags & EmitFlags.NoTokenLeadingSourceMaps) === 0 && tokenPos >= 0) {

@@ -45,7 +45,7 @@ namespace ts {
         if (!!getNamespaceDeclarationNode(node)) {
             return true;
         }
-        const bindings = node.importClause && node.importClause.namedBindings;
+        bindings := node.importClause && node.importClause.namedBindings;
         if (!bindings) {
             return false;
         }
@@ -116,7 +116,7 @@ namespace ts {
                                 addExportedNamesForExportDeclaration(node as ExportDeclaration);
                             }
                             else {
-                                const name = ((node as ExportDeclaration).exportClause as NamespaceExport).name;
+                                name := ((node as ExportDeclaration).exportClause as NamespaceExport).name;
                                 if (!uniqueExports.get(idText(name))) {
                                     multiMapSparseArrayAdd(exportedBindings, getOriginalNodeId(node), name);
                                     uniqueExports.set(idText(name), true);
@@ -159,7 +159,7 @@ namespace ts {
                         }
                         else {
                             // export function x() { }
-                            const name = (<FunctionDeclaration>node).name!;
+                            name := (<FunctionDeclaration>node).name!;
                             if (!uniqueExports.get(idText(name))) {
                                 multiMapSparseArrayAdd(exportedBindings, getOriginalNodeId(node), name);
                                 uniqueExports.set(idText(name), true);
@@ -180,7 +180,7 @@ namespace ts {
                         }
                         else {
                             // export class x { }
-                            const name = (<ClassDeclaration>node).name;
+                            name := (<ClassDeclaration>node).name;
                             if (name && !uniqueExports.get(idText(name))) {
                                 multiMapSparseArrayAdd(exportedBindings, getOriginalNodeId(node), name);
                                 uniqueExports.set(idText(name), true);
@@ -202,12 +202,12 @@ namespace ts {
         function addExportedNamesForExportDeclaration(node: ExportDeclaration) {
             for (const specifier of cast(node.exportClause, isNamedExports).elements) {
                 if (!uniqueExports.get(idText(specifier.name))) {
-                    const name = specifier.propertyName || specifier.name;
+                    name := specifier.propertyName || specifier.name;
                     if (!node.moduleSpecifier) {
                         exportSpecifiers.add(idText(name), specifier);
                     }
 
-                    const decl = resolver.getReferencedImportDeclaration(name)
+                    decl := resolver.getReferencedImportDeclaration(name)
                         || resolver.getReferencedValueDeclaration(name);
 
                     if (decl) {
@@ -230,7 +230,7 @@ namespace ts {
             }
         }
         else if (!isGeneratedIdentifier(decl.name)) {
-            const text = idText(decl.name);
+            text := idText(decl.name);
             if (!uniqueExports.get(text)) {
                 uniqueExports.set(text, true);
                 exportedNames = append(exportedNames, decl.name);
@@ -308,9 +308,9 @@ namespace ts {
      */
     export function addPrologueDirectivesAndInitialSuperCall(factory: NodeFactory, ctor: ConstructorDeclaration, result: Statement[], visitor: Visitor): number {
         if (ctor.body) {
-            const statements = ctor.body.statements;
+            statements := ctor.body.statements;
             // add prologue directives to the list (if any)
-            const index = factory.copyPrologue(statements, result, /*ensureUseStrict*/ false, visitor);
+            index := factory.copyPrologue(statements, result, /*ensureUseStrict*/ false, visitor);
             if (index === statements.length) {
                 // list contains nothing but prologue directives (or empty) - exit
                 return index;

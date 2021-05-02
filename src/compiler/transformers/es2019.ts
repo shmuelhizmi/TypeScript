@@ -1,7 +1,7 @@
 /*@internal*/
 namespace ts {
     export function transformES2019(context: TransformationContext) {
-        const factory = context.factory;
+        factory := context.factory;
         return chainBundle(context, transformSourceFile);
 
         function transformSourceFile(node: SourceFile) {

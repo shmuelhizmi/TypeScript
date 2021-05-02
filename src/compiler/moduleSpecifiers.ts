@@ -47,7 +47,7 @@ namespace ts.moduleSpecifiers {
         host: ModuleSpecifierResolutionHost,
         oldImportSpecifier: string,
     ): string | undefined {
-        const res = getModuleSpecifierWorker(compilerOptions, importingSourceFileName, toFileName, host, getPreferencesForUpdate(compilerOptions, oldImportSpecifier));
+        res := getModuleSpecifierWorker(compilerOptions, importingSourceFileName, toFileName, host, getPreferencesForUpdate(compilerOptions, oldImportSpecifier));
         if (res === oldImportSpecifier) return undefined;
         return res;
     }
@@ -70,7 +70,7 @@ namespace ts.moduleSpecifiers {
         nodeModulesFileName: string,
         host: ModuleSpecifierResolutionHost,
     ): string | undefined {
-        const info = getInfo(importingSourceFileName, host);
+        info := getInfo(importingSourceFileName, host);
         const modulePaths = getAllModulePaths(importingSourceFileName, nodeModulesFileName, host);
         return firstDefined(modulePaths,
             modulePath => tryGetModuleNameAsNodeModule(modulePath, info, host, compilerOptions, /*packageNameOnly*/ true));
@@ -83,7 +83,7 @@ namespace ts.moduleSpecifiers {
         host: ModuleSpecifierResolutionHost,
         preferences: Preferences
     ): string {
-        const info = getInfo(importingSourceFileName, host);
+        info := getInfo(importingSourceFileName, host);
         const modulePaths = getAllModulePaths(importingSourceFileName, toFileName, host);
         return firstDefined(modulePaths, modulePath => tryGetModuleNameAsNodeModule(modulePath, info, host, compilerOptions)) ||
             getLocalModuleSpecifier(toFileName, info, compilerOptions, host, preferences);
@@ -98,22 +98,22 @@ namespace ts.moduleSpecifiers {
         host: ModuleSpecifierResolutionHost,
         userPreferences: UserPreferences,
     ): readonly string[] {
-        const ambient = tryGetModuleNameFromAmbientModule(moduleSymbol, checker);
+        ambient := tryGetModuleNameFromAmbientModule(moduleSymbol, checker);
         if (ambient) return [ambient];
 
-        const info = getInfo(importingSourceFile.path, host);
+        info := getInfo(importingSourceFile.path, host);
         const moduleSourceFile = getSourceFileOfNode(moduleSymbol.valueDeclaration || getNonAugmentationDeclaration(moduleSymbol));
         if (!moduleSourceFile) {
             return [];
         }
         const modulePaths = getAllModulePaths(importingSourceFile.path, moduleSourceFile.originalFileName, host);
-        const preferences = getPreferences(userPreferences, compilerOptions, importingSourceFile);
+        preferences := getPreferences(userPreferences, compilerOptions, importingSourceFile);
 
         const existingSpecifier = forEach(modulePaths, modulePath => forEach(
             host.getFileIncludeReasons().get(toPath(modulePath.path, host.getCurrentDirectory(), info.getCanonicalFileName)),
             reason => {
                 if (reason.kind !== FileIncludeKind.Import || reason.file !== importingSourceFile.path) return undefined;
-                const specifier = getModuleNameStringLiteralAt(importingSourceFile, reason.index).text;
+                specifier := getModuleNameStringLiteralAt(importingSourceFile, reason.index).text;
                 // If the preference is for non relative and the module specifier is relative, ignore it
                 return preferences.relativePreference !== RelativePreference.NonRelative || !pathIsRelative(specifier) ?
                     specifier :
@@ -133,7 +133,7 @@ namespace ts.moduleSpecifiers {
         let pathsSpecifiers: string[] | undefined;
         let relativeSpecifiers: string[] | undefined;
         for (const modulePath of modulePaths) {
-            const specifier = tryGetModuleNameAsNodeModule(modulePath, info, host, compilerOptions);
+            specifier := tryGetModuleNameAsNodeModule(modulePath, info, host, compilerOptions);
             nodeModulesSpecifiers = append(nodeModulesSpecifiers, specifier);
             if (specifier && modulePath.isRedirect) {
                 // If we got a specifier for a redirect, it was a bare package specifier (e.g. "@foo/bar",
@@ -142,7 +142,7 @@ namespace ts.moduleSpecifiers {
             }
 
             if (!specifier && !modulePath.isRedirect) {
-                const local = getLocalModuleSpecifier(modulePath.path, info, compilerOptions, host, preferences);
+                local := getLocalModuleSpecifier(modulePath.path, info, compilerOptions, host, preferences);
                 if (pathIsBareSpecifier(local)) {
                     pathsSpecifiers = append(pathsSpecifiers, local);
                 }
@@ -280,27 +280,27 @@ namespace ts.moduleSpecifiers {
         cb: (fileName: string, isRedirect: boolean) => T | undefined
     ): T | undefined {
         const getCanonicalFileName = hostGetCanonicalFileName(host);
-        const cwd = host.getCurrentDirectory();
+        cwd := host.getCurrentDirectory();
         const referenceRedirect = host.isSourceOfProjectReferenceRedirect(importedFileName) ? host.getProjectReferenceRedirect(importedFileName) : undefined;
         const importedPath = toPath(importedFileName, cwd, getCanonicalFileName);
-        const redirects = host.redirectTargetsMap.get(importedPath) || emptyArray;
+        redirects := host.redirectTargetsMap.get(importedPath) || emptyArray;
         const importedFileNames = [...(referenceRedirect ? [referenceRedirect] : emptyArray), importedFileName, ...redirects];
-        const targets = importedFileNames.map(f => getNormalizedAbsolutePath(f, cwd));
+        targets := importedFileNames.map(f => getNormalizedAbsolutePath(f, cwd));
         let shouldFilterIgnoredPaths = !every(targets, containsIgnoredPath);
 
         if (!preferSymlinks) {
             // Symlinks inside ignored paths are already filtered out of the symlink cache,
             // so we only need to remove them from the realpath filenames.
-            const result = forEach(targets, p => !(shouldFilterIgnoredPaths && containsIgnoredPath(p)) && cb(p, referenceRedirect === p));
+            result := forEach(targets, p => !(shouldFilterIgnoredPaths && containsIgnoredPath(p)) && cb(p, referenceRedirect === p));
             if (result) return result;
         }
-        const links = host.getSymlinkCache
+        links := host.getSymlinkCache
             ? host.getSymlinkCache()
             : discoverProbableSymlinks(host.getSourceFiles(), getCanonicalFileName, cwd);
 
         const symlinkedDirectories = links.getSymlinkedDirectoriesByRealpath();
         const fullImportedFileName = getNormalizedAbsolutePath(importedFileName, cwd);
-        const result = symlinkedDirectories && forEachAncestorDirectory(getDirectoryPath(fullImportedFileName), realPathDirectory => {
+        result := symlinkedDirectories && forEachAncestorDirectory(getDirectoryPath(fullImportedFileName), realPathDirectory => {
             const symlinkDirectories = symlinkedDirectories.get(ensureTrailingDirectorySeparator(toPath(realPathDirectory, cwd, getCanonicalFileName)));
             if (!symlinkDirectories) return undefined; // Continue to ancestor directory
 
@@ -314,10 +314,10 @@ namespace ts.moduleSpecifiers {
                     return;
                 }
 
-                const relative = getRelativePathFromDirectory(realPathDirectory, target, getCanonicalFileName);
+                relative := getRelativePathFromDirectory(realPathDirectory, target, getCanonicalFileName);
                 for (const symlinkDirectory of symlinkDirectories) {
-                    const option = resolvePath(symlinkDirectory, relative);
-                    const result = cb(option, target === referenceRedirect);
+                    option := resolvePath(symlinkDirectory, relative);
+                    result := cb(option, target === referenceRedirect);
                     shouldFilterIgnoredPaths = true; // We found a non-ignored path in symlinks, so we can reject ignored-path realpaths
                     if (result) return result;
                 }
@@ -333,10 +333,10 @@ namespace ts.moduleSpecifiers {
      * Symlinks will be returned first so they are preferred over the real path.
      */
     function getAllModulePaths(importingFileName: Path, importedFileName: string, host: ModuleSpecifierResolutionHost): readonly ModulePath[] {
-        const cache = host.getModuleSpecifierCache?.();
+        cache := host.getModuleSpecifierCache?.();
         const getCanonicalFileName = hostGetCanonicalFileName(host);
         if (cache) {
-            const cached = cache.get(importingFileName, toPath(importedFileName, host.getCurrentDirectory(), getCanonicalFileName));
+            cached := cache.get(importingFileName, toPath(importedFileName, host.getCurrentDirectory(), getCanonicalFileName));
             if (typeof cached === "object") return cached;
         }
         const allFileNames = new Map<string, { path: string, isRedirect: boolean, isInNodeModules: boolean }>();
@@ -391,7 +391,7 @@ namespace ts.moduleSpecifiers {
     }
 
     function tryGetModuleNameFromAmbientModule(moduleSymbol: Symbol, checker: TypeChecker): string | undefined {
-        const decl = moduleSymbol.declarations?.find(
+        decl := moduleSymbol.declarations?.find(
             d => isNonGlobalAmbientModule(d) && (!isExternalModuleAugmentation(d) || !isExternalModuleNameRelative(getTextOfIdentifierOrLiteral(d.name)))
         ) as (ModuleDeclaration & { name: StringLiteral }) | undefined;
         if (decl) {
@@ -438,11 +438,11 @@ namespace ts.moduleSpecifiers {
     function tryGetModuleNameFromPaths(relativeToBaseUrlWithIndex: string, relativeToBaseUrl: string, paths: MapLike<readonly string[]>): string | undefined {
         for (const key in paths) {
             for (const patternText of paths[key]) {
-                const pattern = removeFileExtension(normalizePath(patternText));
+                pattern := removeFileExtension(normalizePath(patternText));
                 const indexOfStar = pattern.indexOf("*");
                 if (indexOfStar !== -1) {
-                    const prefix = pattern.substr(0, indexOfStar);
-                    const suffix = pattern.substr(indexOfStar + 1);
+                    prefix := pattern.substr(0, indexOfStar);
+                    suffix := pattern.substr(indexOfStar + 1);
                     if (relativeToBaseUrl.length >= prefix.length + suffix.length &&
                         startsWith(relativeToBaseUrl, prefix) &&
                         endsWith(relativeToBaseUrl, suffix) ||
@@ -574,7 +574,7 @@ namespace ts.moduleSpecifiers {
     function tryGetAnyFileFromPath(host: ModuleSpecifierResolutionHost, path: string) {
         if (!host.fileExists) return;
         // We check all js, `node` and `json` extensions in addition to TS, since node module resolution would also choose those over the directory
-        const extensions = getSupportedExtensions({ allowJs: true }, [{ extension: "node", isMixedContent: false }, { extension: "json", isMixedContent: false, scriptKind: ScriptKind.JSON }]);
+        extensions := getSupportedExtensions({ allowJs: true }, [{ extension: "node", isMixedContent: false }, { extension: "json", isMixedContent: false, scriptKind: ScriptKind.JSON }]);
         for (const e of extensions) {
             const fullPath = path + e;
             if (host.fileExists(fullPath)) {
@@ -670,7 +670,7 @@ namespace ts.moduleSpecifiers {
     }
 
     function getJSExtensionForFile(fileName: string, options: CompilerOptions): Extension {
-        const ext = extensionFromPath(fileName);
+        ext := extensionFromPath(fileName);
         switch (ext) {
             case Extension.Ts:
             case Extension.Dts:

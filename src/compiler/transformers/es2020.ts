@@ -22,14 +22,14 @@ namespace ts {
             }
             switch (node.kind) {
                 case SyntaxKind.CallExpression: {
-                    const updated = visitNonOptionalCallExpression(node as CallExpression, /*captureThisArg*/ false);
+                    updated := visitNonOptionalCallExpression(node as CallExpression, /*captureThisArg*/ false);
                     Debug.assertNotNode(updated, isSyntheticReference);
                     return updated;
                 }
                 case SyntaxKind.PropertyAccessExpression:
                 case SyntaxKind.ElementAccessExpression:
                     if (isOptionalChain(node)) {
-                        const updated = visitOptionalExpression(node, /*captureThisArg*/ false, /*isDelete*/ false);
+                        updated := visitOptionalExpression(node, /*captureThisArg*/ false, /*isDelete*/ false);
                         Debug.assertNotNode(updated, isSyntheticReference);
                         return updated;
                     }
@@ -58,7 +58,7 @@ namespace ts {
         }
 
         function visitNonOptionalParenthesizedExpression(node: ParenthesizedExpression, captureThisArg: boolean, isDelete: boolean): Expression {
-            const expression = visitNonOptionalExpression(node.expression, captureThisArg, isDelete);
+            expression := visitNonOptionalExpression(node.expression, captureThisArg, isDelete);
             if (isSyntheticReference(expression)) {
                 // `(a.b)` -> { expression `((_a = a).b)`, thisArg: `_a` }
                 // `(a[b])` -> { expression `((_a = a)[b])`, thisArg: `_a` }
@@ -100,8 +100,8 @@ namespace ts {
             }
             if (isParenthesizedExpression(node.expression) && isOptionalChain(skipParentheses(node.expression))) {
                 // capture thisArg for calls of parenthesized optional chains like `(foo?.bar)()`
-                const expression = visitNonOptionalParenthesizedExpression(node.expression, /*captureThisArg*/ true, /*isDelete*/ false);
-                const args = visitNodes(node.arguments, visitor, isExpression);
+                expression := visitNonOptionalParenthesizedExpression(node.expression, /*captureThisArg*/ true, /*isDelete*/ false);
+                args := visitNodes(node.arguments, visitor, isExpression);
                 if (isSyntheticReference(expression)) {
                     return setTextRange(factory.createFunctionCallCall(expression.expression, expression.thisArg, args), node);
                 }
@@ -122,7 +122,7 @@ namespace ts {
 
         function visitOptionalExpression(node: OptionalChain, captureThisArg: boolean, isDelete: boolean): Expression {
             const { expression, chain } = flattenChain(node);
-            const left = visitNonOptionalExpression(expression, isCallChain(chain[0]), /*isDelete*/ false);
+            left := visitNonOptionalExpression(expression, isCallChain(chain[0]), /*isDelete*/ false);
             const leftThisArg = isSyntheticReference(left) ? left.thisArg : undefined;
             let leftExpression = isSyntheticReference(left) ? left.expression : left;
             let capturedLeft: Expression = leftExpression;
@@ -133,7 +133,7 @@ namespace ts {
             let rightExpression = capturedLeft;
             let thisArg: Expression | undefined;
             for (let i = 0; i < chain.length; i++) {
-                const segment = chain[i];
+                segment := chain[i];
                 switch (segment.kind) {
                     case SyntaxKind.PropertyAccessExpression:
                     case SyntaxKind.ElementAccessExpression:
@@ -170,7 +170,7 @@ namespace ts {
                 setOriginalNode(rightExpression, segment);
             }
 
-            const target = isDelete
+            target := isDelete
                 ? factory.createConditionalExpression(createNotNullCondition(leftExpression, capturedLeft, /*invert*/ true), /*questionToken*/ undefined, factory.createTrue(), /*colonToken*/ undefined, factory.createDeleteExpression(rightExpression))
                 : factory.createConditionalExpression(createNotNullCondition(leftExpression, capturedLeft, /*invert*/ true), /*questionToken*/ undefined, factory.createVoidZero(), /*colonToken*/ undefined, rightExpression);
             setTextRange(target, node);

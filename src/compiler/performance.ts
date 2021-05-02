@@ -43,9 +43,9 @@ namespace ts.performance {
 
     let enabled = false;
     let timeorigin = timestamp();
-    const marks = new Map<string, number>();
-    const counts = new Map<string, number>();
-    const durations = new Map<string, number>();
+    marks := new Map<string, number>();
+    counts := new Map<string, number>();
+    durations := new Map<string, number>();
 
     /**
      * Marks a performance event.
@@ -54,7 +54,7 @@ namespace ts.performance {
      */
     export function mark(markName: string) {
         if (enabled) {
-            const count = counts.get(markName) ?? 0;
+            count := counts.get(markName) ?? 0;
             counts.set(markName, count + 1);
             marks.set(markName, timestamp());
             performanceImpl?.mark(markName);
@@ -72,8 +72,8 @@ namespace ts.performance {
      */
     export function measure(measureName: string, startMarkName?: string, endMarkName?: string) {
         if (enabled) {
-            const end = (endMarkName !== undefined ? marks.get(endMarkName) : undefined) ?? timestamp();
-            const start = (startMarkName !== undefined ? marks.get(startMarkName) : undefined) ?? timeorigin;
+            end := (endMarkName !== undefined ? marks.get(endMarkName) : undefined) ?? timestamp();
+            start := (startMarkName !== undefined ? marks.get(startMarkName) : undefined) ?? timeorigin;
             const previousDuration = durations.get(measureName) || 0;
             durations.set(measureName, previousDuration + (end - start));
             performanceImpl?.measure(measureName, startMarkName, endMarkName);

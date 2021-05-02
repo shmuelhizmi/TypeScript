@@ -42,8 +42,8 @@ namespace ts {
         function visitExponentiationAssignmentExpression(node: BinaryExpression) {
             let target: Expression;
             let value: Expression;
-            const left = visitNode(node.left, visitor, isExpression);
-            const right = visitNode(node.right, visitor, isExpression);
+            left := visitNode(node.left, visitor, isExpression);
+            right := visitNode(node.right, visitor, isExpression);
             if (isElementAccessExpression(left)) {
                 // Transforms `a[x] **= b` into `(_a = a)[_x = x] = Math.pow(_a[_x], b)`
                 const expressionTemp = factory.createTempVariable(hoistVariableDeclaration);
@@ -97,8 +97,8 @@ namespace ts {
 
         function visitExponentiationExpression(node: BinaryExpression) {
             // Transforms `a ** b` into `Math.pow(a, b)`
-            const left = visitNode(node.left, visitor, isExpression);
-            const right = visitNode(node.right, visitor, isExpression);
+            left := visitNode(node.left, visitor, isExpression);
+            right := visitNode(node.right, visitor, isExpression);
             return setTextRange(factory.createGlobalMethodCall("Math", "pow", [left, right]), node);
         }
     }

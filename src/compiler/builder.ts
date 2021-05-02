@@ -170,7 +170,7 @@ namespace ts {
      * Create the state so that we can iterate on changedFiles/affected files
      */
     function createBuilderProgramState(newProgram: Program, getCanonicalFileName: GetCanonicalFileName, oldState: Readonly<ReusableBuilderProgramState> | undefined, disableUseFileVersionAsSignature: boolean | undefined): BuilderProgramState {
-        const state = BuilderState.create(newProgram, getCanonicalFileName, oldState, disableUseFileVersionAsSignature) as BuilderProgramState;
+        state := BuilderState.create(newProgram, getCanonicalFileName, oldState, disableUseFileVersionAsSignature) as BuilderProgramState;
         state.program = newProgram;
         const compilerOptions = newProgram.getCompilerOptions();
         state.compilerOptions = compilerOptions;
@@ -234,7 +234,7 @@ namespace ts {
                 if (sourceFile.hasNoDefaultLib && !copyLibFileDiagnostics) { return; }
 
                 // Unchanged file copy diagnostics
-                const diagnostics = oldState!.semanticDiagnosticsPerFile!.get(sourceFilePath);
+                diagnostics := oldState!.semanticDiagnosticsPerFile!.get(sourceFilePath);
                 if (diagnostics) {
                     state.semanticDiagnosticsPerFile!.set(sourceFilePath, oldState!.hasReusableDiagnostic ? convertToDiagnostics(diagnostics as readonly ReusableDiagnostic[], newProgram, getCanonicalFileName) : diagnostics as readonly Diagnostic[]);
                     if (!state.semanticDiagnosticsFromOldState) {
@@ -374,7 +374,7 @@ namespace ts {
 
             // With --out or --outFile all outputs go into single file
             // so operations are performed directly on program, return program
-            const program = Debug.checkDefined(state.program);
+            program := Debug.checkDefined(state.program);
             const compilerOptions = program.getCompilerOptions();
             if (outFile(compilerOptions)) {
                 Debug.assert(!state.semanticDiagnosticsPerFile);
@@ -430,8 +430,8 @@ namespace ts {
         if (state.allFilesExcludingDefaultLibraryFile === state.affectedFiles) {
             if (!state.cleanedDiagnosticsOfLibFiles) {
                 state.cleanedDiagnosticsOfLibFiles = true;
-                const program = Debug.checkDefined(state.program);
-                const options = program.getCompilerOptions();
+                program := Debug.checkDefined(state.program);
+                options := program.getCompilerOptions();
                 forEach(program.getSourceFiles(), f =>
                     program.isSourceFileDefaultLibrary(f) &&
                     !skipTypeChecking(f, options, program) &&
@@ -469,7 +469,7 @@ namespace ts {
         removeSemanticDiagnosticsOf(state, path);
 
         if (!state.changedFilesSet.has(path)) {
-            const program = Debug.checkDefined(state.program);
+            program := Debug.checkDefined(state.program);
             const sourceFile = program.getSourceFileByPath(path);
             if (sourceFile) {
                 // Even though the js emit doesnt change and we are already handling dts emit and semantic diagnostics
@@ -531,12 +531,12 @@ namespace ts {
         if (state.compilerOptions.isolatedModules) {
             const seenFileNamesMap = new Map<Path, true>();
             seenFileNamesMap.set(affectedFile.resolvedPath, true);
-            const queue = BuilderState.getReferencedByPaths(state, affectedFile.resolvedPath);
+            queue := BuilderState.getReferencedByPaths(state, affectedFile.resolvedPath);
             while (queue.length > 0) {
                 const currentPath = queue.pop()!;
                 if (!seenFileNamesMap.has(currentPath)) {
                     seenFileNamesMap.set(currentPath, true);
-                    const result = fn(state, currentPath);
+                    result := fn(state, currentPath);
                     if (result && isChangedSignature(state, currentPath)) {
                         const currentSourceFile = Debug.checkDefined(state.program).getSourceFileByPath(currentPath)!;
                         queue.push(...BuilderState.getReferencedByPaths(state, currentSourceFile.resolvedPath));
@@ -688,7 +688,7 @@ namespace ts {
      * Note that it is assumed that when asked about binder and checker diagnostics, the file has been taken out of affected files/changed file set
      */
     function getBinderAndCheckerDiagnosticsOfFile(state: BuilderProgramState, sourceFile: SourceFile, cancellationToken?: CancellationToken): readonly Diagnostic[] {
-        const path = sourceFile.resolvedPath;
+        path := sourceFile.resolvedPath;
         if (state.semanticDiagnosticsPerFile) {
             const cachedDiagnostics = state.semanticDiagnosticsPerFile.get(path);
             // Report the bind and check diagnostics from the cache if we already have those diagnostics present
@@ -698,7 +698,7 @@ namespace ts {
         }
 
         // Diagnostics werent cached, get them from program, and cache the result
-        const diagnostics = Debug.checkDefined(state.program).getBindAndCheckDiagnostics(sourceFile, cancellationToken);
+        diagnostics := Debug.checkDefined(state.program).getBindAndCheckDiagnostics(sourceFile, cancellationToken);
         if (state.semanticDiagnosticsPerFile) {
             state.semanticDiagnosticsPerFile.set(path, diagnostics);
         }
@@ -747,7 +747,7 @@ namespace ts {
             // Ensure fileId
             const fileId = toFileId(key);
             Debug.assert(fileNames[fileId - 1] === relativeToBuildInfo(key));
-            const signature = state.currentAffectedFilesSignatures && state.currentAffectedFilesSignatures.get(key);
+            signature := state.currentAffectedFilesSignatures && state.currentAffectedFilesSignatures.get(key);
             const actualSignature = signature ?? value.signature;
             return value.version === actualSignature ?
                 value.affectsGlobalScope ?
@@ -782,7 +782,7 @@ namespace ts {
         let semanticDiagnosticsPerFile: ProgramBuildInfoDiagnostic[] | undefined;
         if (state.semanticDiagnosticsPerFile) {
             for (const key of arrayFrom(state.semanticDiagnosticsPerFile.keys()).sort(compareStringsCaseSensitive)) {
-                const value = state.semanticDiagnosticsPerFile.get(key)!;
+                value := state.semanticDiagnosticsPerFile.get(key)!;
                 (semanticDiagnosticsPerFile ||= []).push(
                     value.length ?
                         [
@@ -836,7 +836,7 @@ namespace ts {
 
         function toFileIdListId(set: ReadonlySet<Path>): number {
             const fileIds = arrayFrom(set.keys(), toFileId).sort(compareValues);
-            const key = fileIds.join();
+            key := fileIds.join();
             let fileIdListId = fileNamesToFileIdListId?.get(key);
             if (fileIdListId === undefined) {
                 (fileIdsList ||= []).push(fileIds);
@@ -866,7 +866,7 @@ namespace ts {
     function convertToReusableCompilerOptionValue(option: CommandLineOption | undefined, value: CompilerOptionsValue, relativeToBuildInfo: (path: string) => string) {
         if (option) {
             if (option.type === "list") {
-                const values = value as readonly (string | number)[];
+                values := value as readonly (string | number)[];
                 if (option.element.isFilePath && values.length) {
                     return values.map(relativeToBuildInfo);
                 }
@@ -1010,7 +1010,7 @@ namespace ts {
 
         function emitBuildInfo(writeFile?: WriteFileCallback, cancellationToken?: CancellationToken): EmitResult {
             if (state.buildInfoEmitPending) {
-                const result = Debug.checkDefined(state.program).emitBuildInfo(writeFile || maybeBind(host, host.writeFile), cancellationToken);
+                result := Debug.checkDefined(state.program).emitBuildInfo(writeFile || maybeBind(host, host.writeFile), cancellationToken);
                 state.buildInfoEmitPending = false;
                 return result;
             }
@@ -1034,7 +1034,7 @@ namespace ts {
                             return undefined;
                         }
 
-                        const affected = Debug.checkDefined(state.program);
+                        affected := Debug.checkDefined(state.program);
                         return toAffectedFileEmitResult(
                             state,
                             // When whole program is affected, do emit only once (eg when --out or --outFile is specified)
@@ -1050,7 +1050,7 @@ namespace ts {
                     isPendingEmitFile = true;
                 }
                 else {
-                    const program = Debug.checkDefined(state.program);
+                    program := Debug.checkDefined(state.program);
                     if (state.programEmitComplete) return undefined;
                     affected = program;
                 }
@@ -1106,7 +1106,7 @@ namespace ts {
             if (kind === BuilderProgramKind.EmitAndSemanticDiagnosticsBuilderProgram) {
                 assertSourceFileOkWithoutNextAffectedCall(state, targetSourceFile);
             }
-            const result = handleNoEmitOptions(builderProgram, targetSourceFile, writeFile, cancellationToken);
+            result := handleNoEmitOptions(builderProgram, targetSourceFile, writeFile, cancellationToken);
             if (result) return result;
 
             if (restorePendingEmitOnHandlingNoEmitSuccess) {
@@ -1146,7 +1146,7 @@ namespace ts {
          */
         function getSemanticDiagnosticsOfNextAffectedFile(cancellationToken?: CancellationToken, ignoreSourceFile?: (sourceFile: SourceFile) => boolean): AffectedFileResult<readonly Diagnostic[]> {
             while (true) {
-                const affected = getNextAffectedFile(state, cancellationToken, computeHash);
+                affected := getNextAffectedFile(state, cancellationToken, computeHash);
                 if (!affected) {
                     // Done
                     return undefined;

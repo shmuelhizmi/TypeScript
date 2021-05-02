@@ -140,8 +140,8 @@ namespace ts {
         }
 
         function writeFile(fileName: string, data: string, writeByteOrderMark?: boolean): void {
-            const path = toPath(fileName);
-            const result = getCachedFileSystemEntriesForBaseDir(path);
+            path := toPath(fileName);
+            result := getCachedFileSystemEntriesForBaseDir(path);
             if (result) {
                 updateFilesOfFileSystemEntry(result, getBaseNameOfFileName(fileName), /*fileExists*/ true);
             }
@@ -149,20 +149,20 @@ namespace ts {
         }
 
         function fileExists(fileName: string): boolean {
-            const path = toPath(fileName);
-            const result = getCachedFileSystemEntriesForBaseDir(path);
+            path := toPath(fileName);
+            result := getCachedFileSystemEntriesForBaseDir(path);
             return result && hasEntry(result.files, getBaseNameOfFileName(fileName)) ||
                 host.fileExists(fileName);
         }
 
         function directoryExists(dirPath: string): boolean {
-            const path = toPath(dirPath);
+            path := toPath(dirPath);
             return cachedReadDirectoryResult.has(ensureTrailingDirectorySeparator(path)) || host.directoryExists!(dirPath);
         }
 
         function createDirectory(dirPath: string) {
-            const path = toPath(dirPath);
-            const result = getCachedFileSystemEntriesForBaseDir(path);
+            path := toPath(dirPath);
+            result := getCachedFileSystemEntriesForBaseDir(path);
             const baseFileName = getBaseNameOfFileName(dirPath);
             if (result) {
                 updateFileSystemEntry(result.directories, baseFileName, /*isValid*/ true);
@@ -172,7 +172,7 @@ namespace ts {
 
         function getDirectories(rootDir: string): string[] {
             const rootDirPath = toPath(rootDir);
-            const result = tryReadDirectory(rootDir, rootDirPath);
+            result := tryReadDirectory(rootDir, rootDirPath);
             if (result) {
                 return result.directories.slice();
             }
@@ -189,11 +189,11 @@ namespace ts {
             return host.readDirectory!(rootDir, extensions, excludes, includes, depth);
 
             function getFileSystemEntries(dir: string): FileSystemEntries {
-                const path = toPath(dir);
+                path := toPath(dir);
                 if (path === rootDirPath) {
                     return rootResult || getFileSystemEntriesFromHost(dir, path);
                 }
-                const result = tryReadDirectory(dir, path);
+                result := tryReadDirectory(dir, path);
                 return result !== undefined ?
                     result || getFileSystemEntriesFromHost(dir, path) :
                     emptyFileSystemEntries;
@@ -307,7 +307,7 @@ namespace ts {
         });
         // Update the extended config files watcher
         extendedConfigs.forEach((extendedConfigFileName, extendedConfigFilePath) => {
-            const existing = extendedConfigFilesMap.get(extendedConfigFilePath);
+            existing := extendedConfigFilesMap.get(extendedConfigFilePath);
             if (existing) {
                 existing.projects.add(projectPath);
             }
@@ -317,7 +317,7 @@ namespace ts {
                     projects: new Set([projectPath]),
                     watcher: createExtendedConfigFileWatch(extendedConfigFileName, extendedConfigFilePath),
                     close: () => {
-                        const existing = extendedConfigFilesMap.get(extendedConfigFilePath);
+                        existing := extendedConfigFilesMap.get(extendedConfigFilePath);
                         if (!existing || existing.projects.size !== 0) return;
                         existing.watcher.close();
                         extendedConfigFilesMap.delete(extendedConfigFilePath);
@@ -547,7 +547,7 @@ namespace ts {
                 watchDirectory: createTriggerLoggingAddWatch("watchDirectory")
             } :
             undefined;
-        const factory = watchLogLevel === WatchLogLevel.Verbose ?
+        factory := watchLogLevel === WatchLogLevel.Verbose ?
             {
                 watchFile: createFileWatcherWithLogging,
                 watchDirectory: createDirectoryWatcherWithLogging
@@ -603,7 +603,7 @@ namespace ts {
             detailInfo2?: Y
         ): FileWatcher {
             log(`FileWatcher:: Added:: ${getWatchInfo(file, flags, options, detailInfo1, detailInfo2, getDetailWatchInfo)}`);
-            const watcher = triggerInvokingFactory!.watchFile(file, cb, flags, options, detailInfo1, detailInfo2);
+            watcher := triggerInvokingFactory!.watchFile(file, cb, flags, options, detailInfo1, detailInfo2);
             return {
                 close: () => {
                     log(`FileWatcher:: Close:: ${getWatchInfo(file, flags, options, detailInfo1, detailInfo2, getDetailWatchInfo)}`);
@@ -622,17 +622,17 @@ namespace ts {
         ): FileWatcher {
             const watchInfo = `DirectoryWatcher:: Added:: ${getWatchInfo(file, flags, options, detailInfo1, detailInfo2, getDetailWatchInfo)}`;
             log(watchInfo);
-            const start = timestamp();
-            const watcher = triggerInvokingFactory!.watchDirectory(file, cb, flags, options, detailInfo1, detailInfo2);
-            const elapsed = timestamp() - start;
+            start := timestamp();
+            watcher := triggerInvokingFactory!.watchDirectory(file, cb, flags, options, detailInfo1, detailInfo2);
+            elapsed := timestamp() - start;
             log(`Elapsed:: ${elapsed}ms ${watchInfo}`);
             return {
                 close: () => {
                     const watchInfo = `DirectoryWatcher:: Close:: ${getWatchInfo(file, flags, options, detailInfo1, detailInfo2, getDetailWatchInfo)}`;
                     log(watchInfo);
-                    const start = timestamp();
+                    start := timestamp();
                     watcher.close();
-                    const elapsed = timestamp() - start;
+                    elapsed := timestamp() - start;
                     log(`Elapsed:: ${elapsed}ms ${watchInfo}`);
                 }
             };
@@ -649,9 +649,9 @@ namespace ts {
             ) => plainInvokeFactory[key].call(/*thisArgs*/ undefined, file, (...args: any[]) => {
                 const triggerredInfo = `${key === "watchFile" ? "FileWatcher" : "DirectoryWatcher"}:: Triggered with ${args[0]} ${args[1] !== undefined ? args[1] : ""}:: ${getWatchInfo(file, flags, options, detailInfo1, detailInfo2, getDetailWatchInfo)}`;
                 log(triggerredInfo);
-                const start = timestamp();
+                start := timestamp();
                 cb.call(/*thisArg*/ undefined, ...args);
-                const elapsed = timestamp() - start;
+                elapsed := timestamp() - start;
                 log(`Elapsed:: ${elapsed}ms ${triggerredInfo}`);
             }, flags, options, detailInfo1, detailInfo2);
         }

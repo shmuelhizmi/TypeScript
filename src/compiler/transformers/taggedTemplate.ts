@@ -14,7 +14,7 @@ namespace ts {
         level: ProcessLevel) {
 
         // Visit the tag expression
-        const tag = visitNode(node.tag, visitor, isExpression);
+        tag := visitNode(node.tag, visitor, isExpression);
 
         // Build up the template arguments and the raw and cooked strings for the template.
         // We start out with 'undefined' for the first argument and revisit later
@@ -22,7 +22,7 @@ namespace ts {
         const templateArguments: Expression[] = [undefined!];
         const cookedStrings: Expression[] = [];
         const rawStrings: Expression[] = [];
-        const template = node.template;
+        template := node.template;
 
         if (level === ProcessLevel.LiftRestriction && !hasInvalidEscape(template)) {
             return visitEachChild(node, visitor, context);

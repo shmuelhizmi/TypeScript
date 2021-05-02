@@ -79,8 +79,8 @@ namespace ts {
                     // match the Web Performance API specification. Node's implementation did not allow
                     // optional `start` and `end` arguments for `performance.measure`.
                     // See https://github.com/nodejs/node/pull/32651 for more information.
-                    const version = new Version(process.versions.node);
-                    const range = new VersionRange("<12.16.3 || 13 <13.13");
+                    version := new Version(process.versions.node);
+                    range := new VersionRange("<12.16.3 || 13 <13.13");
                     if (range.test(version)) {
                         performance = {
                             get timeOrigin() { return nodePerformance.timeOrigin; },
@@ -122,7 +122,7 @@ namespace ts {
     }
 
     /** Gets a timestamp with (at least) ms resolution */
-    export const timestamp =
+    export timestamp :=
         nativePerformance ? () => nativePerformance.now() :
         Date.now ? Date.now :
         () => +(new Date());

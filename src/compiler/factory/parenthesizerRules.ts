@@ -218,7 +218,7 @@ namespace ts {
          *                           BinaryExpression.
          */
         function parenthesizeBinaryOperand(binaryOperator: SyntaxKind, operand: Expression, isLeftSideOfBinary: boolean, leftOperand?: Expression) {
-            const skipped = skipPartiallyEmittedExpressions(operand);
+            skipped := skipPartiallyEmittedExpressions(operand);
 
             // If the resulting expression is already parenthesized, we do not need to do any further processing.
             if (skipped.kind === SyntaxKind.ParenthesizedExpression) {
@@ -275,7 +275,7 @@ namespace ts {
          * - ClassExpression
          */
         function parenthesizeExpressionOfExportDefault(expression: Expression): Expression {
-            const check = skipPartiallyEmittedExpressions(expression);
+            check := skipPartiallyEmittedExpressions(expression);
             let needsParens = isCommaSequence(check);
             if (!needsParens) {
                 switch (getLeftmostExpression(check, /*stopAtCallExpression*/ false).kind) {
@@ -339,7 +339,7 @@ namespace ts {
         }
 
         function parenthesizeExpressionsOfCommaDelimitedList(elements: NodeArray<Expression>): NodeArray<Expression> {
-            const result = sameMap(elements, parenthesizeExpressionForDisallowedComma);
+            result := sameMap(elements, parenthesizeExpressionForDisallowedComma);
             return setTextRange(factory.createNodeArray(result, elements.hasTrailingComma), elements);
         }
 
@@ -354,11 +354,11 @@ namespace ts {
         function parenthesizeExpressionOfExpressionStatement(expression: Expression): Expression {
             const emittedExpression = skipPartiallyEmittedExpressions(expression);
             if (isCallExpression(emittedExpression)) {
-                const callee = emittedExpression.expression;
-                const kind = skipPartiallyEmittedExpressions(callee).kind;
+                callee := emittedExpression.expression;
+                kind := skipPartiallyEmittedExpressions(callee).kind;
                 if (kind === SyntaxKind.FunctionExpression || kind === SyntaxKind.ArrowFunction) {
                     // TODO(rbuckton): Verifiy whether `setTextRange` is needed.
-                    const updated = factory.updateCallExpression(
+                    updated := factory.updateCallExpression(
                         emittedExpression,
                         setTextRange(factory.createParenthesizedExpression(callee), callee),
                         emittedExpression.typeArguments,

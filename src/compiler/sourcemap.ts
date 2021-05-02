@@ -51,7 +51,7 @@ namespace ts {
 
         function addSource(fileName: string) {
             enter();
-            const source = getRelativePathToDirectoryOrUrl(sourcesDirectoryPath,
+            source := getRelativePathToDirectoryOrUrl(sourcesDirectoryPath,
                 fileName,
                 host.getCurrentDirectory(),
                 host.getCanonicalFileName,
@@ -150,7 +150,7 @@ namespace ts {
             let nameIndexToNewNameIndexMap: number[] | undefined;
             const mappingIterator = decodeMappings(map.mappings);
             for (let iterResult = mappingIterator.next(); !iterResult.done; iterResult = mappingIterator.next()) {
-                const raw = iterResult.value;
+                raw := iterResult.value;
                 if (end && (
                     raw.generatedLine > end.line ||
                     (raw.generatedLine === end.line && raw.generatedCharacter > end.character))) {
@@ -298,8 +298,8 @@ namespace ts {
      */
     export function tryGetSourceMappingURL(lineInfo: LineInfo) {
         for (let index = lineInfo.getLineCount() - 1; index >= 0; index--) {
-            const line = lineInfo.getLineText(index);
-            const comment = sourceMapCommentRegExp.exec(line);
+            line := lineInfo.getLineText(index);
+            comment := sourceMapCommentRegExp.exec(line);
             if (comment) {
                 return comment[1];
             }
@@ -330,7 +330,7 @@ namespace ts {
 
     export function tryParseRawSourceMap(text: string) {
         try {
-            const parsed = JSON.parse(text);
+            parsed := JSON.parse(text);
             if (isRawSourceMap(parsed)) {
                 return parsed;
             }
@@ -380,7 +380,7 @@ namespace ts {
             get state() { return captureMapping(/*hasSource*/ true, /*hasName*/ true); },
             next() {
                 while (!done && pos < mappings.length) {
-                    const ch = mappings.charCodeAt(pos);
+                    ch := mappings.charCodeAt(pos);
                     if (ch === CharacterCodes.semicolon) {
                         // new line
                         generatedLine++;
@@ -656,8 +656,8 @@ namespace ts {
 
         function getDecodedMappings() {
             if (decodedMappings === undefined) {
-                const decoder = decodeMappings(map.mappings);
-                const mappings = arrayFrom(decoder, processMapping);
+                decoder := decodeMappings(map.mappings);
+                mappings := arrayFrom(decoder, processMapping);
                 if (decoder.error !== undefined) {
                     if (host.log) {
                         host.log(`Encountered error while decoding sourcemap: ${decoder.error}`);
@@ -709,7 +709,7 @@ namespace ts {
                 targetIndex = ~targetIndex;
             }
 
-            const mapping = sourceMappings[targetIndex];
+            mapping := sourceMappings[targetIndex];
             if (mapping === undefined || mapping.sourceIndex !== sourceIndex) {
                 return loc;
             }
@@ -727,7 +727,7 @@ namespace ts {
                 targetIndex = ~targetIndex;
             }
 
-            const mapping = generatedMappings[targetIndex];
+            mapping := generatedMappings[targetIndex];
             if (mapping === undefined || !isSourceMappedPosition(mapping)) {
                 return loc;
             }

@@ -146,7 +146,7 @@ namespace ts {
                 visitType(numberIndexType);
 
                 // The two checks above *should* have already resolved the type (if needed), so this should be cached
-                const resolved = resolveStructuredTypeMembers(type);
+                resolved := resolveStructuredTypeMembers(type);
                 for (const signature of resolved.callSignatures) {
                     visitSignature(signature);
                 }
@@ -170,7 +170,7 @@ namespace ts {
                 if (!accept(symbol)) {
                     return true;
                 }
-                const t = getTypeOfSymbol(symbol);
+                t := getTypeOfSymbol(symbol);
                 visitType(t); // Should handle members on classes and such
                 if (symbol.exports) {
                     symbol.exports.forEach(visitSymbol);
@@ -181,8 +181,8 @@ namespace ts {
                     // So to get the intervening symbols, we need to check if there's a type
                     // query node on any of the symbol's declarations and get symbols there
                     if ((d as any).type && (d as any).type.kind === SyntaxKind.TypeQuery) {
-                        const query = (d as any).type as TypeQueryNode;
-                        const entity = getResolvedSymbol(getFirstIdentifier(query.exprName));
+                        query := (d as any).type as TypeQueryNode;
+                        entity := getResolvedSymbol(getFirstIdentifier(query.exprName));
                         visitSymbol(entity);
                     }
                 });

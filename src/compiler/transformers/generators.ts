@@ -240,7 +240,7 @@ namespace ts {
 
         const compilerOptions = context.getCompilerOptions();
         const languageVersion = getEmitScriptTarget(compilerOptions);
-        const resolver = context.getEmitResolver();
+        resolver := context.getEmitResolver();
         const previousOnSubstituteNode = context.onSubstituteNode;
         context.onSubstituteNode = onSubstituteNode;
 
@@ -300,7 +300,7 @@ namespace ts {
             }
 
 
-            const visited = visitEachChild(node, visitor, context);
+            visited := visitEachChild(node, visitor, context);
             addEmitHelpers(visited, context.readEmitHelpers());
             return visited;
         }
@@ -635,7 +635,7 @@ namespace ts {
                     hoistVariableDeclaration(<Identifier>variable.name);
                 }
 
-                const variables = getInitializedVariables(node.declarationList);
+                variables := getInitializedVariables(node.declarationList);
                 if (variables.length === 0) {
                     return undefined;
                 }
@@ -660,7 +660,7 @@ namespace ts {
          * @param node The node to visit.
          */
         function visitBinaryExpression(node: BinaryExpression): Expression {
-            const assoc = getExpressionAssociativity(node);
+            assoc := getExpressionAssociativity(node);
             switch (assoc) {
                 case Associativity.Left:
                     return visitLeftAssociativeBinaryExpression(node);
@@ -722,7 +722,7 @@ namespace ts {
                         break;
                 }
 
-                const operator = node.operatorToken.kind;
+                operator := node.operatorToken.kind;
                 if (isCompoundAssignment(operator)) {
                     return setTextRange(
                         factory.createAssignment(
@@ -941,10 +941,10 @@ namespace ts {
             //      x = %sent%;
 
             const resumeLabel = defineLabel();
-            const expression = visitNode(node.expression, visitor, isExpression);
+            expression := visitNode(node.expression, visitor, isExpression);
             if (node.asteriskToken) {
                 // NOTE: `expression` must be defined for `yield*`.
-                const iterator = (getEmitFlags(node.expression!) & EmitFlags.Iterator) === 0
+                iterator := (getEmitFlags(node.expression!) & EmitFlags.Iterator) === 0
                     ? setTextRange(emitHelpers().createValuesHelper(expression!), node)
                     : expression;
                 emitYieldStar(iterator, /*location*/ node);
@@ -1000,7 +1000,7 @@ namespace ts {
                 leadingElement = undefined;
             }
 
-            const expressions = reduceLeft(elements, reduceElement, <Expression[]>[], numInitialElements);
+            expressions := reduceLeft(elements, reduceElement, <Expression[]>[], numInitialElements);
             return temp
                 ? factory.createArrayConcatCall(temp, [factory.createArrayLiteralExpression(expressions, multiLine)])
                 : setTextRange(
@@ -1055,11 +1055,11 @@ namespace ts {
             //          _a.c = 2,
             //          _a);
 
-            const properties = node.properties;
+            properties := node.properties;
             const multiLine = node.multiLine;
             const numInitialProperties = countInitialNodesWithoutYield(properties);
 
-            const temp = declareLocal();
+            temp := declareLocal();
             emitAssignment(temp,
                 factory.createObjectLiteralExpression(
                     visitNodes(properties, visitor, isObjectLiteralElementLike, 0, numInitialProperties),
@@ -1067,7 +1067,7 @@ namespace ts {
                 )
             );
 
-            const expressions = reduceLeft(properties, reduceProperty, <Expression[]>[], numInitialProperties);
+            expressions := reduceLeft(properties, reduceProperty, <Expression[]>[], numInitialProperties);
             // TODO(rbuckton): Does this need to be parented?
             expressions.push(multiLine ? startOnNewLine(setParent(setTextRange(factory.cloneNode(temp), temp), temp.parent)) : temp);
             return factory.inlineExpressions(expressions);
@@ -1078,8 +1078,8 @@ namespace ts {
                     expressions = [];
                 }
 
-                const expression = createExpressionForObjectLiteralElementLike(factory, node, property, temp);
-                const visited = visitNode(expression, visitor, isExpression);
+                expression := createExpressionForObjectLiteralElementLike(factory, node, property, temp);
+                visited := visitNode(expression, visitor, isExpression);
                 if (visited) {
                     if (multiLine) {
                         startOnNewLine(visited);
@@ -1258,18 +1258,18 @@ namespace ts {
 
         function transformAndEmitVariableDeclarationList(node: VariableDeclarationList): VariableDeclarationList | undefined {
             for (const variable of node.declarations) {
-                const name = factory.cloneNode(<Identifier>variable.name);
+                name := factory.cloneNode(<Identifier>variable.name);
                 setCommentRange(name, variable.name);
                 hoistVariableDeclaration(name);
             }
 
-            const variables = getInitializedVariables(node);
+            variables := getInitializedVariables(node);
             const numVariables = variables.length;
             let variablesWritten = 0;
             let pendingExpressions: Expression[] = [];
             while (variablesWritten < numVariables) {
                 for (let i = variablesWritten; i < numVariables; i++) {
-                    const variable = variables[i];
+                    variable := variables[i];
                     if (containsYield(variable.initializer) && pendingExpressions.length > 0) {
                         break;
                     }
@@ -1442,7 +1442,7 @@ namespace ts {
                 const incrementLabel = defineLabel();
                 const endLabel = beginLoopBlock(incrementLabel);
                 if (node.initializer) {
-                    const initializer = node.initializer;
+                    initializer := node.initializer;
                     if (isVariableDeclarationList(initializer)) {
                         transformAndEmitVariableDeclarationList(initializer);
                     }
@@ -1489,13 +1489,13 @@ namespace ts {
                 beginScriptLoopBlock();
             }
 
-            const initializer = node.initializer;
+            initializer := node.initializer;
             if (initializer && isVariableDeclarationList(initializer)) {
                 for (const variable of initializer.declarations) {
                     hoistVariableDeclaration(<Identifier>variable.name);
                 }
 
-                const variables = getInitializedVariables(initializer);
+                variables := getInitializedVariables(initializer);
                 node = factory.updateForStatement(node,
                     variables.length > 0
                         ? factory.inlineExpressions(map(variables, transformInitializedVariable))
@@ -1541,9 +1541,9 @@ namespace ts {
                 //  .mark endLoopLabel
 
                 const keysArray = declareLocal(); // _a
-                const key = declareLocal(); // _b
+                key := declareLocal(); // _b
                 const keysIndex = factory.createLoopVariable(); // _i
-                const initializer = node.initializer;
+                initializer := node.initializer;
                 hoistVariableDeclaration(keysIndex);
                 emitAssignment(keysArray, factory.createArrayLiteralExpression());
 
@@ -1615,7 +1615,7 @@ namespace ts {
                 beginScriptLoopBlock();
             }
 
-            const initializer = node.initializer;
+            initializer := node.initializer;
             if (isVariableDeclarationList(initializer)) {
                 for (const variable of initializer.declarations) {
                     hoistVariableDeclaration(<Identifier>variable.name);
@@ -1639,7 +1639,7 @@ namespace ts {
         }
 
         function transformAndEmitContinueStatement(node: ContinueStatement): void {
-            const label = findContinueTarget(node.label ? idText(node.label) : undefined);
+            label := findContinueTarget(node.label ? idText(node.label) : undefined);
             if (label > 0) {
                 emitBreak(label, /*location*/ node);
             }
@@ -1651,7 +1651,7 @@ namespace ts {
 
         function visitContinueStatement(node: ContinueStatement): Statement {
             if (inStatementContainingYield) {
-                const label = findContinueTarget(node.label && idText(node.label));
+                label := findContinueTarget(node.label && idText(node.label));
                 if (label > 0) {
                     return createInlineBreak(label, /*location*/ node);
                 }
@@ -1661,7 +1661,7 @@ namespace ts {
         }
 
         function transformAndEmitBreakStatement(node: BreakStatement): void {
-            const label = findBreakTarget(node.label ? idText(node.label) : undefined);
+            label := findBreakTarget(node.label ? idText(node.label) : undefined);
             if (label > 0) {
                 emitBreak(label, /*location*/ node);
             }
@@ -1673,7 +1673,7 @@ namespace ts {
 
         function visitBreakStatement(node: BreakStatement): Statement {
             if (inStatementContainingYield) {
-                const label = findBreakTarget(node.label && idText(node.label));
+                label := findBreakTarget(node.label && idText(node.label));
                 if (label > 0) {
                     return createInlineBreak(label, /*location*/ node);
                 }
@@ -1754,13 +1754,13 @@ namespace ts {
                 const numClauses = caseBlock.clauses.length;
                 const endLabel = beginSwitchBlock();
 
-                const expression = cacheExpression(visitNode(node.expression, visitor, isExpression));
+                expression := cacheExpression(visitNode(node.expression, visitor, isExpression));
 
                 // Create labels for each clause and find the index of the first default clause.
                 const clauseLabels: Label[] = [];
                 let defaultClauseIndex = -1;
                 for (let i = 0; i < numClauses; i++) {
-                    const clause = caseBlock.clauses[i];
+                    clause := caseBlock.clauses[i];
                     clauseLabels.push(defineLabel());
                     if (clause.kind === SyntaxKind.DefaultClause && defaultClauseIndex === -1) {
                         defaultClauseIndex = i;
@@ -1775,7 +1775,7 @@ namespace ts {
                 while (clausesWritten < numClauses) {
                     let defaultClausesSkipped = 0;
                     for (let i = clausesWritten; i < numClauses; i++) {
-                        const clause = caseBlock.clauses[i];
+                        clause := caseBlock.clauses[i];
                         if (clause.kind === SyntaxKind.CaseClause) {
                             if (containsYield(clause.expression) && pendingClauses.length > 0) {
                                 break;
@@ -1965,14 +1965,14 @@ namespace ts {
 
         function substituteExpressionIdentifier(node: Identifier) {
             if (!isGeneratedIdentifier(node) && renamedCatchVariables && renamedCatchVariables.has(idText(node))) {
-                const original = getOriginalNode(node);
+                original := getOriginalNode(node);
                 if (isIdentifier(original) && original.parent) {
-                    const declaration = resolver.getReferencedValueDeclaration(original);
+                    declaration := resolver.getReferencedValueDeclaration(original);
                     if (declaration) {
-                        const name = renamedCatchVariableDeclarations[getOriginalNodeId(declaration)];
+                        name := renamedCatchVariableDeclarations[getOriginalNodeId(declaration)];
                         if (name) {
                             // TODO(rbuckton): Does this need to be parented?
-                            const clone = setParent(setTextRange(factory.cloneNode(name), name), name.parent);
+                            clone := setParent(setTextRange(factory.cloneNode(name), name), name.parent);
                             setSourceMapRange(clone, node);
                             setCommentRange(clone, node);
                             return clone;
@@ -1989,13 +1989,13 @@ namespace ts {
                 return <Identifier>node;
             }
 
-            const temp = factory.createTempVariable(hoistVariableDeclaration);
+            temp := factory.createTempVariable(hoistVariableDeclaration);
             emitAssignment(temp, node, /*location*/ node);
             return temp;
         }
 
         function declareLocal(name?: string): Identifier {
-            const temp = name
+            temp := name
                 ? factory.createUniqueName(name)
                 : factory.createTempVariable(/*recordTempVariable*/ undefined);
             hoistVariableDeclaration(temp);
@@ -2010,7 +2010,7 @@ namespace ts {
                 labelOffsets = [];
             }
 
-            const label = nextLabelId;
+            label := nextLabelId;
             nextLabelId++;
             labelOffsets[label] = -1;
             return label;
@@ -2037,7 +2037,7 @@ namespace ts {
                 blockStack = [];
             }
 
-            const index = blockActions!.length;
+            index := blockActions!.length;
             blockActions![index] = BlockAction.Open;
             blockOffsets![index] = operations ? operations.length : 0;
             blocks[index] = block;
@@ -2049,10 +2049,10 @@ namespace ts {
          * Ends the current block operation.
          */
         function endBlock(): CodeBlock {
-            const block = peekBlock();
+            block := peekBlock();
             if (block === undefined) return Debug.fail("beginBlock was never called.");
 
-            const index = blockActions!.length;
+            index := blockActions!.length;
             blockActions![index] = BlockAction.Close;
             blockOffsets![index] = operations ? operations.length : 0;
             blocks![index] = block;
@@ -2071,7 +2071,7 @@ namespace ts {
          * Gets the kind of the current open block.
          */
         function peekBlockKind(): CodeBlockKind | undefined {
-            const block = peekBlock();
+            block := peekBlock();
             return block && block.kind;
         }
 
@@ -2097,7 +2097,7 @@ namespace ts {
          */
         function endWithBlock(): void {
             Debug.assert(peekBlockKind() === CodeBlockKind.With);
-            const block = <WithBlock>endBlock();
+            block := <WithBlock>endBlock();
             markLabel(block.endLabel);
         }
 
@@ -2133,7 +2133,7 @@ namespace ts {
                 hoistVariableDeclaration(variable.name);
             }
             else {
-                const text = idText(<Identifier>variable.name);
+                text := idText(<Identifier>variable.name);
                 name = declareLocal(text);
                 if (!renamedCatchVariables) {
                     renamedCatchVariables = new Map<string, boolean>();
@@ -2145,7 +2145,7 @@ namespace ts {
                 renamedCatchVariableDeclarations[getOriginalNodeId(variable)] = name;
             }
 
-            const exception = <ExceptionBlock>peekBlock();
+            exception := <ExceptionBlock>peekBlock();
             Debug.assert(exception.state < ExceptionBlockState.Catch);
 
             const endLabel = exception.endLabel;
@@ -2167,7 +2167,7 @@ namespace ts {
         function beginFinallyBlock(): void {
             Debug.assert(peekBlockKind() === CodeBlockKind.Exception);
 
-            const exception = <ExceptionBlock>peekBlock();
+            exception := <ExceptionBlock>peekBlock();
             Debug.assert(exception.state < ExceptionBlockState.Finally);
 
             const endLabel = exception.endLabel;
@@ -2184,8 +2184,8 @@ namespace ts {
          */
         function endExceptionBlock(): void {
             Debug.assert(peekBlockKind() === CodeBlockKind.Exception);
-            const exception = <ExceptionBlock>endBlock();
-            const state = exception.state;
+            exception := <ExceptionBlock>endBlock();
+            state := exception.state;
             if (state < ExceptionBlockState.Finally) {
                 emitBreak(exception.endLabel);
             }
@@ -2238,7 +2238,7 @@ namespace ts {
          */
         function endLoopBlock(): void {
             Debug.assert(peekBlockKind() === CodeBlockKind.Loop);
-            const block = <SwitchBlock>endBlock();
+            block := <SwitchBlock>endBlock();
             const breakLabel = block.breakLabel;
             if (!block.isScript) {
                 markLabel(breakLabel);
@@ -2278,7 +2278,7 @@ namespace ts {
          */
         function endSwitchBlock(): void {
             Debug.assert(peekBlockKind() === CodeBlockKind.Switch);
-            const block = <SwitchBlock>endBlock();
+            block := <SwitchBlock>endBlock();
             const breakLabel = block.breakLabel;
             if (!block.isScript) {
                 markLabel(breakLabel);
@@ -2306,7 +2306,7 @@ namespace ts {
 
         function endLabeledBlock() {
             Debug.assert(peekBlockKind() === CodeBlockKind.Labeled);
-            const block = <LabeledBlock>endBlock();
+            block := <LabeledBlock>endBlock();
             if (!block.isScript) {
                 markLabel(block.breakLabel);
             }
@@ -2365,7 +2365,7 @@ namespace ts {
             if (blockStack) {
                 if (labelText) {
                     for (let i = blockStack.length - 1; i >= 0; i--) {
-                        const block = blockStack[i];
+                        block := blockStack[i];
                         if (supportsLabeledBreakOrContinue(block) && block.labelText === labelText) {
                             return block.breakLabel;
                         }
@@ -2376,7 +2376,7 @@ namespace ts {
                 }
                 else {
                     for (let i = blockStack.length - 1; i >= 0; i--) {
-                        const block = blockStack[i];
+                        block := blockStack[i];
                         if (supportsUnlabeledBreak(block)) {
                             return block.breakLabel;
                         }
@@ -2395,7 +2395,7 @@ namespace ts {
             if (blockStack) {
                 if (labelText) {
                     for (let i = blockStack.length - 1; i >= 0; i--) {
-                        const block = blockStack[i];
+                        block := blockStack[i];
                         if (supportsUnlabeledContinue(block) && hasImmediateContainingLabeledBlock(labelText, i - 1)) {
                             return block.continueLabel;
                         }
@@ -2403,7 +2403,7 @@ namespace ts {
                 }
                 else {
                     for (let i = blockStack.length - 1; i >= 0; i--) {
-                        const block = blockStack[i];
+                        block := blockStack[i];
                         if (supportsUnlabeledContinue(block)) {
                             return block.continueLabel;
                         }
@@ -2424,7 +2424,7 @@ namespace ts {
                     labelExpressions = [];
                 }
 
-                const expression = factory.createNumericLiteral(-1);
+                expression := factory.createNumericLiteral(-1);
                 if (labelExpressions[label] === undefined) {
                     labelExpressions[label] = [expression];
                 }
@@ -2442,7 +2442,7 @@ namespace ts {
          * Creates a numeric literal for the provided instruction.
          */
         function createInstruction(instruction: Instruction): NumericLiteral {
-            const literal = factory.createNumericLiteral(instruction);
+            literal := factory.createNumericLiteral(instruction);
             addSyntheticTrailingComment(literal, SyntaxKind.MultiLineCommentTrivia, getInstructionName(instruction));
             return literal;
         }
@@ -2859,10 +2859,10 @@ namespace ts {
         function updateLabelExpressions() {
             if (labelExpressions !== undefined && labelNumbers !== undefined) {
                 for (let labelNumber = 0; labelNumber < labelNumbers.length; labelNumber++) {
-                    const labels = labelNumbers[labelNumber];
+                    labels := labelNumbers[labelNumber];
                     if (labels !== undefined) {
                         for (const label of labels) {
-                            const expressions = labelExpressions[label];
+                            expressions := labelExpressions[label];
                             if (expressions !== undefined) {
                                 for (const expression of expressions) {
                                     expression.text = String(labelNumber);
@@ -2935,7 +2935,7 @@ namespace ts {
             lastOperationWasAbrupt = false;
             lastOperationWasCompletion = false;
 
-            const opcode = operations![operationIndex];
+            opcode := operations![operationIndex];
             if (opcode === OpCode.Nop) {
                 return;
             }
@@ -2943,12 +2943,12 @@ namespace ts {
                 return writeEndfinally();
             }
 
-            const args = operationArguments![operationIndex]!;
+            args := operationArguments![operationIndex]!;
             if (opcode === OpCode.Statement) {
                 return writeStatement(<Statement>args[0]);
             }
 
-            const location = operationLocations![operationIndex];
+            location := operationLocations![operationIndex];
             switch (opcode) {
                 case OpCode.Assign:
                     return writeAssign(<Expression>args[0], <Expression>args[1], location);

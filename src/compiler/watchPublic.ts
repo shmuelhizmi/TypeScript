@@ -8,7 +8,7 @@ namespace ts {
         if (outFile(compilerOptions)) return undefined;
         const buildInfoPath = getTsBuildInfoEmitOutputFilePath(compilerOptions);
         if (!buildInfoPath) return undefined;
-        const content = host.readFile(buildInfoPath);
+        content := host.readFile(buildInfoPath);
         if (!content) return undefined;
         const buildInfo = getBuildInfo(content);
         if (buildInfo.version !== version) return undefined;
@@ -17,7 +17,7 @@ namespace ts {
     }
 
     export function createIncrementalCompilerHost(options: CompilerOptions, system = sys): CompilerHost {
-        const host = createCompilerHostWorker(options, /*setParentNodes*/ undefined, system);
+        host := createCompilerHostWorker(options, /*setParentNodes*/ undefined, system);
         host.createHash = maybeBind(system, system.createHash);
         host.disableUseFileVersionAsSignature = system.disableUseFileVersionAsSignature;
         setGetSourceFileAsHashVersioned(host, system);
@@ -416,7 +416,7 @@ namespace ts {
             writeLog(`Synchronizing program`);
             clearInvalidateResolutionsOfFailedLookupLocations();
 
-            const program = getCurrentBuilderProgram();
+            program := getCurrentBuilderProgram();
             if (hasChangedCompilerOptions) {
                 newLine = updateNewLine();
                 if (program && changesAffectModuleResolution(program.getCompilerOptions(), compilerOptions)) {
@@ -503,7 +503,7 @@ namespace ts {
         }
 
         function fileExists(fileName: string) {
-            const path = toPath(fileName);
+            path := toPath(fileName);
             // If file is missing on host from cache, we can definitely say file doesnt exist
             // otherwise we need to ensure from the disk
             if (isFileMissingOnHost(sourceFilesCache.get(path))) {
@@ -616,7 +616,7 @@ namespace ts {
             if (!host.setTimeout || !host.clearTimeout) {
                 return resolutionCache.invalidateResolutionsOfFailedLookupLocations();
             }
-            const pending = clearInvalidateResolutionsOfFailedLookupLocations();
+            pending := clearInvalidateResolutionsOfFailedLookupLocations();
             writeLog(`Scheduling invalidateFailedLookup${pending ? ", Cancelled earlier one" : ""}`);
             timerToInvalidateFailedLookupResolutions = host.setTimeout(invalidateResolutionsOfFailedLookup, 250);
         }
@@ -776,8 +776,8 @@ namespace ts {
         }
 
         function onReleaseParsedCommandLine(fileName: string) {
-            const path = toPath(fileName);
-            const config = parsedConfigs?.get(path);
+            path := toPath(fileName);
+            config := parsedConfigs?.get(path);
             if (!config) return;
 
             parsedConfigs!.delete(path);
@@ -905,7 +905,7 @@ namespace ts {
                         // Update extended config cache
                         if (extendedConfigCache) cleanExtendedConfigCache(extendedConfigCache, extendedConfigFilePath, toPath);
                         // Update projects
-                        const projects = sharedExtendedConfigFileWatchers.get(extendedConfigFilePath)?.projects;
+                        projects := sharedExtendedConfigFileWatchers.get(extendedConfigFilePath)?.projects;
                         // If there are no referenced projects this extended config file watcher depend on ignore
                         if (!projects?.size) return;
                         projects.forEach(projectPath => {
@@ -915,7 +915,7 @@ namespace ts {
                             }
                             else {
                                 // Reload config for the referenced projects and remove the resolutions from referenced projects since the config file changed
-                                const config = parsedConfigs?.get(projectPath);
+                                config := parsedConfigs?.get(projectPath);
                                 if (config) config.reloadLevel = ConfigFileProgramReloadLevel.Full;
                                 resolutionCache.removeResolutionsFromProjectReferenceRedirects(projectPath);
                             }
@@ -936,7 +936,7 @@ namespace ts {
                 configFileName,
                 (_fileName, eventKind) => {
                     updateCachedSystemWithFile(configFileName, configPath, eventKind);
-                    const config = parsedConfigs?.get(configPath);
+                    config := parsedConfigs?.get(configPath);
                     if (config) config.reloadLevel = ConfigFileProgramReloadLevel.Full;
                     resolutionCache.removeResolutionsFromProjectReferenceRedirects(configPath);
                     scheduleProgramUpdate();
@@ -960,7 +960,7 @@ namespace ts {
                             }
                             nextSourceFileVersion(fileOrDirectoryPath);
 
-                            const config = parsedConfigs?.get(configPath);
+                            config := parsedConfigs?.get(configPath);
                             if (!config?.parsedCommandLine) return;
                             if (isIgnoredFileFromWildCardWatching({
                                 watchedDirPath: toPath(directory),

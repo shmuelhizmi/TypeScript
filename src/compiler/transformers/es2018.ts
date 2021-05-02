@@ -46,7 +46,7 @@ namespace ts {
             hoistVariableDeclaration
         } = context;
 
-        const resolver = context.getEmitResolver();
+        resolver := context.getEmitResolver();
         const compilerOptions = context.getCompilerOptions();
         const languageVersion = getEmitScriptTarget(compilerOptions);
 
@@ -110,7 +110,7 @@ namespace ts {
             }
 
             currentSourceFile = node;
-            const visited = visitSourceFile(node);
+            visited := visitSourceFile(node);
             addEmitHelpers(visited, context.readEmitHelpers());
 
             currentSourceFile = undefined!;
@@ -136,7 +136,7 @@ namespace ts {
         function doWithHierarchyFacts<T, U>(cb: (value: T) => U, value: T, excludeFacts: HierarchyFacts, includeFacts: HierarchyFacts) {
             if (affectsSubtree(excludeFacts, includeFacts)) {
                 const ancestorFacts = enterSubtree(excludeFacts, includeFacts);
-                const result = cb(value);
+                result := cb(value);
                 exitSubtree(ancestorFacts);
                 return result;
             }
@@ -282,7 +282,7 @@ namespace ts {
         function visitYieldExpression(node: YieldExpression) {
             if (enclosingFunctionFlags & FunctionFlags.Async && enclosingFunctionFlags & FunctionFlags.Generator) {
                 if (node.asteriskToken) {
-                    const expression = visitNode(Debug.assertDefined(node.expression), visitor, isExpression);
+                    expression := visitNode(Debug.assertDefined(node.expression), visitor, isExpression);
 
                     return setOriginalNode(
                         setTextRange(
@@ -341,7 +341,7 @@ namespace ts {
 
         function visitLabeledStatement(node: LabeledStatement) {
             if (enclosingFunctionFlags & FunctionFlags.Async) {
-                const statement = unwrapInnermostStatementOfLabel(node);
+                statement := unwrapInnermostStatementOfLabel(node);
                 if (statement.kind === SyntaxKind.ForOfStatement && (<ForOfStatement>statement).awaitModifier) {
                     return visitForOfStatement(<ForOfStatement>statement, node);
                 }
@@ -359,7 +359,7 @@ namespace ts {
                         objects.push(factory.createObjectLiteralExpression(chunkObject));
                         chunkObject = undefined;
                     }
-                    const target = e.expression;
+                    target := e.expression;
                     objects.push(visitNode(target, visitor, isExpression));
                 }
                 else {
@@ -398,7 +398,7 @@ namespace ts {
                 //      // expected: { a: 1, b: 2, z: 9 }
                 // If we translate the above to `__assign({}, k, l)`, the `l` will evaluate before `k` is spread and we
                 // end up with `{ a: 1, b: 2, c: 3 }`
-                const objects = chunkObjectLiteralElements(node.properties);
+                objects := chunkObjectLiteralElements(node.properties);
                 if (objects.length && objects[0].kind !== SyntaxKind.ObjectLiteralExpression) {
                     objects.unshift(factory.createObjectLiteralExpression());
                 }
@@ -435,12 +435,12 @@ namespace ts {
                     HierarchyFacts.StrictModeSourceFileIncludes :
                     HierarchyFacts.SourceFileIncludes);
             exportedVariableStatement = false;
-            const visited = visitEachChild(node, visitor, context);
-            const statement = concatenate(visited.statements, taggedTemplateStringDeclarations && [
+            visited := visitEachChild(node, visitor, context);
+            statement := concatenate(visited.statements, taggedTemplateStringDeclarations && [
                 factory.createVariableStatement(/*modifiers*/ undefined,
                     factory.createVariableDeclarationList(taggedTemplateStringDeclarations))
             ]);
-            const result = factory.updateSourceFile(visited, setTextRange(factory.createNodeArray(statement), node.statements));
+            result := factory.updateSourceFile(visited, setTextRange(factory.createNodeArray(statement), node.statements));
             exitSubtree(ancestorFacts);
             return result;
         }
@@ -494,14 +494,14 @@ namespace ts {
             }
             let result: Expression[] | undefined;
             for (let i = 0; i < node.elements.length; i++) {
-                const element = node.elements[i];
-                const visited = visitNode(element, i < node.elements.length - 1 ? visitorWithUnusedExpressionResult : visitor, isExpression);
+                element := node.elements[i];
+                visited := visitNode(element, i < node.elements.length - 1 ? visitorWithUnusedExpressionResult : visitor, isExpression);
                 if (result || visited !== element) {
                     result ||= node.elements.slice(0, i);
                     result.push(visited);
                 }
             }
-            const elements = result ? setTextRange(factory.createNodeArray(result), node.elements) : node.elements;
+            elements := result ? setTextRange(factory.createNodeArray(result), node.elements) : node.elements;
             return factory.updateCommaListExpression(node, elements);
         }
 
@@ -509,7 +509,7 @@ namespace ts {
             if (node.variableDeclaration &&
                 isBindingPattern(node.variableDeclaration.name) &&
                 node.variableDeclaration.name.transformFlags & TransformFlags.ContainsObjectRestOrSpread) {
-                const name = factory.getGeneratedNameForNode(node.variableDeclaration.name);
+                name := factory.getGeneratedNameForNode(node.variableDeclaration.name);
                 const updatedDecl = factory.updateVariableDeclaration(node.variableDeclaration, node.variableDeclaration.name, /*exclamationToken*/ undefined, /*type*/ undefined, name);
                 const visitedBindings = flattenDestructuringBinding(updatedDecl, visitor, context, FlattenLevel.ObjectRest);
                 let block = visitNode(node.block, visitor, isBlock);
@@ -531,7 +531,7 @@ namespace ts {
             if (hasSyntacticModifier(node, ModifierFlags.Export)) {
                 const savedExportedVariableStatement = exportedVariableStatement;
                 exportedVariableStatement = true;
-                const visited = visitEachChild(node, visitor, context);
+                visited := visitEachChild(node, visitor, context);
                 exportedVariableStatement = savedExportedVariableStatement;
                 return visited;
             }
@@ -547,7 +547,7 @@ namespace ts {
             if (exportedVariableStatement) {
                 const savedExportedVariableStatement = exportedVariableStatement;
                 exportedVariableStatement = false;
-                const visited = visitVariableDeclarationWorker(node, /*exportedVariableStatement*/ true);
+                visited := visitVariableDeclarationWorker(node, /*exportedVariableStatement*/ true);
                 exportedVariableStatement = savedExportedVariableStatement;
                 return visited;
             }
@@ -593,7 +593,7 @@ namespace ts {
             if (node.initializer.transformFlags & TransformFlags.ContainsObjectRestOrSpread) {
                 node = transformForOfStatementWithObjectRest(node);
             }
-            const result = node.awaitModifier ?
+            result := node.awaitModifier ?
                 transformForAwaitOfStatement(node, outermostLabeledStatement, ancestorFacts) :
                 factory.restoreEnclosingLabel(visitEachChild(node, visitor, context), outermostLabeledStatement);
             exitSubtree(ancestorFacts);
@@ -605,7 +605,7 @@ namespace ts {
             if (isVariableDeclarationList(initializerWithoutParens) || isAssignmentPattern(initializerWithoutParens)) {
                 let bodyLocation: TextRange | undefined;
                 let statementsLocation: TextRange | undefined;
-                const temp = factory.createTempVariable(/*recordTempVariable*/ undefined);
+                temp := factory.createTempVariable(/*recordTempVariable*/ undefined);
                 const statements: Statement[] = [createForOfBindingStatement(factory, initializerWithoutParens, temp)];
                 if (isBlock(node.statement)) {
                     addRange(statements, node.statement.statements);
@@ -643,12 +643,12 @@ namespace ts {
         }
 
         function convertForOfStatementHead(node: ForOfStatement, boundValue: Expression) {
-            const binding = createForOfBindingStatement(factory, node.initializer, boundValue);
+            binding := createForOfBindingStatement(factory, node.initializer, boundValue);
 
             let bodyLocation: TextRange | undefined;
             let statementsLocation: TextRange | undefined;
             const statements: Statement[] = [visitNode(binding, visitor, isStatement)];
-            const statement = visitIterationBody(node.statement, visitor, context);
+            statement := visitIterationBody(node.statement, visitor, context);
             if (isBlock(statement)) {
                 addRange(statements, statement.statements);
                 bodyLocation = statement;
@@ -677,9 +677,9 @@ namespace ts {
         }
 
         function transformForAwaitOfStatement(node: ForOfStatement, outermostLabeledStatement: LabeledStatement | undefined, ancestorFacts: HierarchyFacts) {
-            const expression = visitNode(node.expression, visitor, isExpression);
-            const iterator = isIdentifier(expression) ? factory.getGeneratedNameForNode(expression) : factory.createTempVariable(/*recordTempVariable*/ undefined);
-            const result = isIdentifier(expression) ? factory.getGeneratedNameForNode(iterator) : factory.createTempVariable(/*recordTempVariable*/ undefined);
+            expression := visitNode(node.expression, visitor, isExpression);
+            iterator := isIdentifier(expression) ? factory.getGeneratedNameForNode(expression) : factory.createTempVariable(/*recordTempVariable*/ undefined);
+            result := isIdentifier(expression) ? factory.getGeneratedNameForNode(iterator) : factory.createTempVariable(/*recordTempVariable*/ undefined);
             const errorRecord = factory.createUniqueName("e");
             const catchVariable = factory.getGeneratedNameForNode(errorRecord);
             const returnMethod = factory.createTempVariable(/*recordTempVariable*/ undefined);
@@ -693,7 +693,7 @@ namespace ts {
             hoistVariableDeclaration(returnMethod);
 
             // if we are enclosed in an outer loop ensure we reset 'errorRecord' per each iteration
-            const initializer = ancestorFacts & HierarchyFacts.IterationContainer ?
+            initializer := ancestorFacts & HierarchyFacts.IterationContainer ?
                 factory.inlineExpressions([factory.createAssignment(errorRecord, factory.createVoidZero()), callValues]) :
                 callValues;
 
@@ -806,7 +806,7 @@ namespace ts {
         function visitConstructorDeclaration(node: ConstructorDeclaration) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = FunctionFlags.Normal;
-            const updated = factory.updateConstructorDeclaration(
+            updated := factory.updateConstructorDeclaration(
                 node,
                 /*decorators*/ undefined,
                 node.modifiers,
@@ -820,7 +820,7 @@ namespace ts {
         function visitGetAccessorDeclaration(node: GetAccessorDeclaration) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = FunctionFlags.Normal;
-            const updated = factory.updateGetAccessorDeclaration(
+            updated := factory.updateGetAccessorDeclaration(
                 node,
                 /*decorators*/ undefined,
                 node.modifiers,
@@ -836,7 +836,7 @@ namespace ts {
         function visitSetAccessorDeclaration(node: SetAccessorDeclaration) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = FunctionFlags.Normal;
-            const updated = factory.updateSetAccessorDeclaration(
+            updated := factory.updateSetAccessorDeclaration(
                 node,
                 /*decorators*/ undefined,
                 node.modifiers,
@@ -851,7 +851,7 @@ namespace ts {
         function visitMethodDeclaration(node: MethodDeclaration) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = getFunctionFlags(node);
-            const updated = factory.updateMethodDeclaration(
+            updated := factory.updateMethodDeclaration(
                 node,
                 /*decorators*/ undefined,
                 enclosingFunctionFlags & FunctionFlags.Generator
@@ -876,7 +876,7 @@ namespace ts {
         function visitFunctionDeclaration(node: FunctionDeclaration) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = getFunctionFlags(node);
-            const updated = factory.updateFunctionDeclaration(
+            updated := factory.updateFunctionDeclaration(
                 node,
                 /*decorators*/ undefined,
                 enclosingFunctionFlags & FunctionFlags.Generator
@@ -900,7 +900,7 @@ namespace ts {
         function visitArrowFunction(node: ArrowFunction) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = getFunctionFlags(node);
-            const updated = factory.updateArrowFunction(
+            updated := factory.updateArrowFunction(
                 node,
                 node.modifiers,
                 /*typeParameters*/ undefined,
@@ -916,7 +916,7 @@ namespace ts {
         function visitFunctionExpression(node: FunctionExpression) {
             const savedEnclosingFunctionFlags = enclosingFunctionFlags;
             enclosingFunctionFlags = getFunctionFlags(node);
-            const updated = factory.updateFunctionExpression(
+            updated := factory.updateFunctionExpression(
                 node,
                 enclosingFunctionFlags & FunctionFlags.Generator
                     ? visitNodes(node.modifiers, visitorNoAsyncModifier, isModifier)
@@ -979,7 +979,7 @@ namespace ts {
             statements.push(returnStatement);
 
             insertStatementsAfterStandardPrologue(statements, endLexicalEnvironment());
-            const block = factory.updateBlock(node.body!, statements);
+            block := factory.updateBlock(node.body!, statements);
 
             if (emitSuperHelpers && hasSuperElementAccess) {
                 if (resolver.getNodeCheckFlags(node) & NodeCheckFlags.AsyncMethodWithSuperBinding) {
@@ -1002,14 +1002,14 @@ namespace ts {
             resumeLexicalEnvironment();
             let statementOffset = 0;
             const statements: Statement[] = [];
-            const body = visitNode(node.body, visitor, isConciseBody) ?? factory.createBlock([]);
+            body := visitNode(node.body, visitor, isConciseBody) ?? factory.createBlock([]);
             if (isBlock(body)) {
                 statementOffset = factory.copyPrologue(body.statements, statements, /*ensureUseStrict*/ false, visitor);
             }
             addRange(statements, appendObjectRestAssignmentsIfNeeded(/*statements*/ undefined, node));
             const leadingStatements = endLexicalEnvironment();
             if (statementOffset > 0 || some(statements) || some(leadingStatements)) {
-                const block = factory.converters.convertToFunctionBlock(body, /*multiLine*/ true);
+                block := factory.converters.convertToFunctionBlock(body, /*multiLine*/ true);
                 insertStatementsAfterStandardPrologue(statements, leadingStatements);
                 addRange(statements, block.statements.slice(statementOffset));
                 return factory.updateBlock(block, setTextRange(factory.createNodeArray(statements), block.statements));
@@ -1020,8 +1020,8 @@ namespace ts {
         function appendObjectRestAssignmentsIfNeeded(statements: Statement[] | undefined, node: FunctionLikeDeclaration): Statement[] | undefined {
             for (const parameter of node.parameters) {
                 if (parameter.transformFlags & TransformFlags.ContainsObjectRestOrSpread) {
-                    const temp = factory.getGeneratedNameForNode(parameter);
-                    const declarations = flattenDestructuringBinding(
+                    temp := factory.getGeneratedNameForNode(parameter);
+                    declarations := flattenDestructuringBinding(
                         parameter,
                         visitor,
                         context,
@@ -1031,7 +1031,7 @@ namespace ts {
                         /*skipInitializer*/ true,
                     );
                     if (some(declarations)) {
-                        const statement = factory.createVariableStatement(
+                        statement := factory.createVariableStatement(
                             /*modifiers*/ undefined,
                             factory.createVariableDeclarationList(
                                 declarations
@@ -1147,7 +1147,7 @@ namespace ts {
         }
 
         function substituteCallExpression(node: CallExpression): Expression {
-            const expression = node.expression;
+            expression := node.expression;
             if (isSuperProperty(expression)) {
                 const argumentExpression = isPropertyAccessExpression(expression)
                     ? substitutePropertyAccessExpression(expression)
@@ -1165,7 +1165,7 @@ namespace ts {
         }
 
         function isSuperContainer(node: Node) {
-            const kind = node.kind;
+            kind := node.kind;
             return kind === SyntaxKind.ClassDeclaration
                 || kind === SyntaxKind.Constructor
                 || kind === SyntaxKind.MethodDeclaration

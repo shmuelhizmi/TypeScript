@@ -24,7 +24,7 @@ namespace ts {
             return node;
         }
 
-        const visited = visitor(node);
+        visited := visitor(node);
         if (visited === node) {
             return node;
         }
@@ -83,7 +83,7 @@ namespace ts {
         let updated: T[] | undefined;
 
         // Ensure start and count have valid values
-        const length = nodes.length;
+        length := nodes.length;
         if (start === undefined || start < 0) {
             start = 0;
         }
@@ -106,7 +106,7 @@ namespace ts {
         // Visit each original node.
         for (let i = 0; i < count; i++) {
             const node: T = nodes[i + start];
-            const visited = node !== undefined ? visitor(node) : undefined;
+            visited := node !== undefined ? visitor(node) : undefined;
             if (updated !== undefined || visited === undefined || visited !== node) {
                 if (updated === undefined) {
                     // Ensure we have a copy of `nodes`, up to the current index.
@@ -183,8 +183,8 @@ namespace ts {
     function addDefaultValueAssignmentsIfNeeded(parameters: NodeArray<ParameterDeclaration>, context: TransformationContext) {
         let result: ParameterDeclaration[] | undefined;
         for (let i = 0; i < parameters.length; i++) {
-            const parameter = parameters[i];
-            const updated = addDefaultValueAssignmentIfNeeded(parameter, context);
+            parameter := parameters[i];
+            updated := addDefaultValueAssignmentIfNeeded(parameter, context);
             if (result || updated !== parameter) {
                 if (!result) result = parameters.slice(0, i);
                 result[i] = updated;
@@ -242,7 +242,7 @@ namespace ts {
     }
 
     function addDefaultValueAssignmentForInitializer(parameter: ParameterDeclaration, name: Identifier, initializer: Expression, context: TransformationContext) {
-        const factory = context.factory;
+        factory := context.factory;
         context.addInitializationStatement(
             factory.createIfStatement(
                 factory.createTypeCheck(factory.cloneNode(name), "undefined"),
@@ -298,14 +298,14 @@ namespace ts {
     /* @internal*/ export function visitFunctionBody(node: ConciseBody, visitor: Visitor, context: TransformationContext, nodeVisitor?: NodeVisitor): ConciseBody; // eslint-disable-line @typescript-eslint/unified-signatures
     export function visitFunctionBody(node: ConciseBody | undefined, visitor: Visitor, context: TransformationContext, nodeVisitor: NodeVisitor = visitNode): ConciseBody | undefined {
         context.resumeLexicalEnvironment();
-        const updated = nodeVisitor(node, visitor, isConciseBody);
-        const declarations = context.endLexicalEnvironment();
+        updated := nodeVisitor(node, visitor, isConciseBody);
+        declarations := context.endLexicalEnvironment();
         if (some(declarations)) {
             if (!updated) {
                 return context.factory.createBlock(declarations);
             }
-            const block = context.factory.converters.convertToFunctionBlock(updated);
-            const statements = factory.mergeLexicalEnvironment(block.statements, declarations);
+            block := context.factory.converters.convertToFunctionBlock(updated);
+            statements := factory.mergeLexicalEnvironment(block.statements, declarations);
             return context.factory.updateBlock(block, statements);
         }
         return updated;
@@ -316,8 +316,8 @@ namespace ts {
      */
     export function visitIterationBody(body: Statement, visitor: Visitor, context: TransformationContext): Statement {
         context.startBlockScope();
-        const updated = visitNode(body, visitor, isStatement, context.factory.liftToBlock);
-        const declarations = context.endBlockScope();
+        updated := visitNode(body, visitor, isStatement, context.factory.liftToBlock);
+        declarations := context.endBlockScope();
         if (some(declarations)) {
             if (isBlock(updated)) {
                 declarations.push(...updated.statements);
@@ -354,14 +354,14 @@ namespace ts {
             return undefined;
         }
 
-        const kind = node.kind;
+        kind := node.kind;
 
         // No need to visit nodes with no children.
         if ((kind > SyntaxKind.FirstToken && kind <= SyntaxKind.LastToken) || kind === SyntaxKind.ThisType) {
             return node;
         }
 
-        const factory = context.factory;
+        factory := context.factory;
         switch (kind) {
             // Names
 

@@ -220,7 +220,7 @@ namespace ts {
 
         // Chain together and initialize each transformer.
         const transformersWithContext = transformers.map(t => t(context));
-        const transformation = (node: T): T => {
+        transformation := (node: T): T => {
             for (const transform of transformersWithContext) {
                 node = transform(node);
             }
@@ -329,7 +329,7 @@ namespace ts {
         function hoistVariableDeclaration(name: Identifier): void {
             Debug.assert(state > TransformationState.Uninitialized, "Cannot modify the lexical environment during initialization.");
             Debug.assert(state < TransformationState.Completed, "Cannot modify the lexical environment after transformation has completed.");
-            const decl = setEmitFlags(factory.createVariableDeclaration(name), EmitFlags.NoNestedSourceMaps);
+            decl := setEmitFlags(factory.createVariableDeclaration(name), EmitFlags.NoNestedSourceMaps);
             if (!lexicalEnvironmentVariableDeclarations) {
                 lexicalEnvironmentVariableDeclarations = [decl];
             }
@@ -429,7 +429,7 @@ namespace ts {
                 }
 
                 if (lexicalEnvironmentVariableDeclarations) {
-                    const statement = factory.createVariableStatement(
+                    statement := factory.createVariableStatement(
                         /*modifiers*/ undefined,
                         factory.createVariableDeclarationList(lexicalEnvironmentVariableDeclarations)
                     );
@@ -534,7 +534,7 @@ namespace ts {
         function readEmitHelpers(): EmitHelper[] | undefined {
             Debug.assert(state > TransformationState.Uninitialized, "Cannot modify the transformation context during initialization.");
             Debug.assert(state < TransformationState.Completed, "Cannot modify the transformation context after transformation has completed.");
-            const helpers = emitHelpers;
+            helpers := emitHelpers;
             emitHelpers = undefined;
             return helpers;
         }

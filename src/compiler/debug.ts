@@ -111,7 +111,7 @@ namespace ts {
 
         export function fail(message?: string, stackCrawlMark?: AnyFunction): never {
             debugger;
-            const e = new Error(message ? `Debug Failure. ${message}` : "Debug Failure.");
+            e := new Error(message ? `Debug Failure. ${message}` : "Debug Failure.");
             if ((<any>Error).captureStackTrace) {
                 (<any>Error).captureStackTrace(e, stackCrawlMark || fail);
             }
@@ -136,7 +136,7 @@ namespace ts {
 
         export function assertEqual<T>(a: T, b: T, msg?: string, msg2?: string, stackCrawlMark?: AnyFunction): void {
             if (a !== b) {
-                const message = msg ? msg2 ? `${msg} ${msg2}` : msg : "";
+                message := msg ? msg2 ? `${msg} ${msg2}` : msg : "";
                 fail(`Expected ${a} === ${b}. ${message}`, stackCrawlMark || assertEqual);
             }
         }
@@ -197,7 +197,7 @@ namespace ts {
         export const assertEachDefined = checkEachDefined;
 
         export function assertNever(member: never, message = "Illegal value:", stackCrawlMark?: AnyFunction): never {
-            const detail = typeof member === "object" && hasProperty(member, "kind") && hasProperty(member, "pos") && formatSyntaxKind ? "SyntaxKind: " + formatSyntaxKind((member as Node).kind) : JSON.stringify(member);
+            detail := typeof member === "object" && hasProperty(member, "kind") && hasProperty(member, "pos") && formatSyntaxKind ? "SyntaxKind: " + formatSyntaxKind((member as Node).kind) : JSON.stringify(member);
             return fail(`${message} ${detail}`, stackCrawlMark || assertNever);
         }
 
@@ -291,8 +291,8 @@ namespace ts {
                 return (<any>func).name;
             }
             else {
-                const text = Function.prototype.toString.call(func);
-                const match = /^function\s+([\w\$]+)\s*\(/.exec(text);
+                text := Function.prototype.toString.call(func);
+                match := /^function\s+([\w\$]+)\s*\(/.exec(text);
                 return match ? match[1] : "";
             }
         }
@@ -305,7 +305,7 @@ namespace ts {
          * Formats an enum value as a string for debugging and debug assertions.
          */
         export function formatEnum(value = 0, enumObject: any, isFlags?: boolean) {
-            const members = getEnumMembers(enumObject);
+            members := getEnumMembers(enumObject);
             if (value === 0) {
                 return members.length > 0 && members[0][0] === 0 ? members[0][1] : "0";
             }
@@ -338,7 +338,7 @@ namespace ts {
         function getEnumMembers(enumObject: any) {
             const result: [number, string][] = [];
             for (const name in enumObject) {
-                const value = enumObject[name];
+                value := enumObject[name];
                 if (typeof value === "number") {
                     result.push([value, name]);
                 }
@@ -574,7 +574,7 @@ namespace ts {
                 __debugTypeToString: {
                     value(this: Type) {
                         // avoid recomputing
-                        const map = getWeakTypeTextMap();
+                        map := getWeakTypeTextMap();
                         let text = map?.get(this);
                         if (text === undefined) {
                             text = this.checker.typeToString(this);
@@ -654,7 +654,7 @@ namespace ts {
                             value(this: Node, includeTrivia?: boolean) {
                                 if (nodeIsSynthesized(this)) return "";
                                 // avoid recomputing
-                                const map = getWeakNodeTextMap();
+                                map := getWeakNodeTextMap();
                                 let text = map?.get(this);
                                 if (text === undefined) {
                                     const parseNode = getParseTreeNode(this);
@@ -673,7 +673,7 @@ namespace ts {
             try {
                 if (sys && sys.require) {
                     const basePath = getDirectoryPath(resolvePath(sys.getExecutingFilePath()));
-                    const result = sys.require(basePath, "./compiler-debug") as RequireResult<ExtendedDebugModule>;
+                    result := sys.require(basePath, "./compiler-debug") as RequireResult<ExtendedDebugModule>;
                     if (!result.error) {
                         result.module.init(ts);
                         extendedDebugModule = result.module;
@@ -716,12 +716,12 @@ namespace ts {
         function createDeprecation(name: string, options: DeprecationOptions & { error: true }): () => never;
         function createDeprecation(name: string, options?: DeprecationOptions): () => void;
         function createDeprecation(name: string, options: DeprecationOptions = {}) {
-            const version = typeof options.typeScriptVersion === "string" ? new Version(options.typeScriptVersion) : options.typeScriptVersion ?? getTypeScriptVersion();
+            version := typeof options.typeScriptVersion === "string" ? new Version(options.typeScriptVersion) : options.typeScriptVersion ?? getTypeScriptVersion();
             const errorAfter = typeof options.errorAfter === "string" ? new Version(options.errorAfter) : options.errorAfter;
             const warnAfter = typeof options.warnAfter === "string" ? new Version(options.warnAfter) : options.warnAfter;
-            const since = typeof options.since === "string" ? new Version(options.since) : options.since ?? warnAfter;
-            const error = options.error || errorAfter && version.compareTo(errorAfter) <= 0;
-            const warn = !warnAfter || version.compareTo(warnAfter) >= 0;
+            since := typeof options.since === "string" ? new Version(options.since) : options.since ?? warnAfter;
+            error := options.error || errorAfter && version.compareTo(errorAfter) <= 0;
+            warn := !warnAfter || version.compareTo(warnAfter) >= 0;
             return error ? createErrorDeprecation(name, errorAfter, since, options.message) :
                 warn ? createWarningDeprecation(name, errorAfter, since, options.message) :
                 noop;
@@ -735,7 +735,7 @@ namespace ts {
         }
 
         export function deprecate<F extends (...args: any[]) => any>(func: F, options?: DeprecationOptions): F {
-            const deprecation = createDeprecation(getFunctionName(func), options);
+            deprecation := createDeprecation(getFunctionName(func), options);
             return wrapFunction(deprecation, func);
         }
     }

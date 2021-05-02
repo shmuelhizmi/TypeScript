@@ -16,14 +16,14 @@ namespace ts {
             if (isBlock(node)) return node;
             const returnStatement = factory.createReturnStatement(node);
             setTextRange(returnStatement, node);
-            const body = factory.createBlock([returnStatement], multiLine);
+            body := factory.createBlock([returnStatement], multiLine);
             setTextRange(body, node);
             return body;
         }
 
         function convertToFunctionExpression(node: FunctionDeclaration) {
             if (!node.body) return Debug.fail(`Cannot convert a FunctionDeclaration without a body`);
-            const updated = factory.createFunctionExpression(
+            updated := factory.createFunctionExpression(
                 node.modifiers,
                 node.asteriskToken,
                 node.name,
@@ -46,7 +46,7 @@ namespace ts {
                     Debug.assertNode(element.name, isIdentifier);
                     return setOriginalNode(setTextRange(factory.createSpreadElement(element.name), element), element);
                 }
-                const expression = convertToAssignmentElementTarget(element.name);
+                expression := convertToAssignmentElementTarget(element.name);
                 return element.initializer
                     ? setOriginalNode(
                         setTextRange(
@@ -67,7 +67,7 @@ namespace ts {
                     return setOriginalNode(setTextRange(factory.createSpreadAssignment(element.name), element), element);
                 }
                 if (element.propertyName) {
-                    const expression = convertToAssignmentElementTarget(element.name);
+                    expression := convertToAssignmentElementTarget(element.name);
                     return setOriginalNode(setTextRange(factory.createPropertyAssignment(element.propertyName, element.initializer ? factory.createAssignment(expression, element.initializer) : expression), element), element);
                 }
                 Debug.assertNode(element.name, isIdentifier);

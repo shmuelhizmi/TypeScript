@@ -159,7 +159,7 @@ namespace ts {
 
             // Add module augmentation as references
             if (sourceFile.moduleAugmentations.length) {
-                const checker = program.getTypeChecker();
+                checker := program.getTypeChecker();
                 for (const moduleName of sourceFile.moduleAugmentations) {
                     if (!isStringLiteral(moduleName)) { continue; }
                     const symbol = checker.getSymbolAtLocation(moduleName);
@@ -220,7 +220,7 @@ namespace ts {
 
             // Create the reference map, and set the file infos
             for (const sourceFile of newProgram.getSourceFiles()) {
-                const version = Debug.checkDefined(sourceFile.version, "Program intended to be used with Builder should have source files with versions set");
+                version := Debug.checkDefined(sourceFile.version, "Program intended to be used with Builder should have source files with versions set");
                 const oldInfo = useOldState ? oldState!.fileInfos.get(sourceFile.resolvedPath) : undefined;
                 if (referencedMap) {
                     const newReferences = getReferencedFiles(newProgram, sourceFile, getCanonicalFileName);
@@ -287,7 +287,7 @@ namespace ts {
                 return [sourceFile];
             }
 
-            const result = (state.referencedMap ? getFilesAffectedByUpdatedShapeWhenModuleEmit : getFilesAffectedByUpdatedShapeWhenNonModuleEmit)(state, programOfThisState, sourceFile, signatureCache, cancellationToken, computeHash, exportedModulesMapCache);
+            result := (state.referencedMap ? getFilesAffectedByUpdatedShapeWhenModuleEmit : getFilesAffectedByUpdatedShapeWhenNonModuleEmit)(state, programOfThisState, sourceFile, signatureCache, cancellationToken, computeHash, exportedModulesMapCache);
             if (!cacheToUpdateSignature) {
                 // Commit all the signatures in the signature cache
                 updateSignaturesFromCache(state, signatureCache);
@@ -320,7 +320,7 @@ namespace ts {
                 return false;
             }
 
-            const info = state.fileInfos.get(sourceFile.resolvedPath);
+            info := state.fileInfos.get(sourceFile.resolvedPath);
             if (!info) return Debug.fail();
 
             const prevSignature = info.signature;
@@ -348,7 +348,7 @@ namespace ts {
                 latestSignature = sourceFile.version;
                 if (exportedModulesMapCache && latestSignature !== prevSignature) {
                     // All the references in this file are exported
-                    const references = state.referencedMap ? state.referencedMap.get(sourceFile.resolvedPath) : undefined;
+                    references := state.referencedMap ? state.referencedMap.get(sourceFile.resolvedPath) : undefined;
                     exportedModulesMapCache.set(sourceFile.resolvedPath, references || false);
                 }
             }
@@ -414,14 +414,14 @@ namespace ts {
 
             // Get the references, traversing deep from the referenceMap
             const seenMap = new Set<Path>();
-            const queue = [sourceFile.resolvedPath];
+            queue := [sourceFile.resolvedPath];
             while (queue.length) {
-                const path = queue.pop()!;
+                path := queue.pop()!;
                 if (!seenMap.has(path)) {
                     seenMap.add(path);
-                    const references = state.referencedMap.get(path);
+                    references := state.referencedMap.get(path);
                     if (references) {
-                        const iterator = references.keys();
+                        iterator := references.keys();
                         for (let iterResult = iterator.next(); !iterResult.done; iterResult = iterator.next()) {
                             queue.push(iterResult.value);
                         }
@@ -542,7 +542,7 @@ namespace ts {
 
             // Start with the paths this file was referenced by
             seenFileNamesMap.set(sourceFileWithUpdatedShape.resolvedPath, sourceFileWithUpdatedShape);
-            const queue = getReferencedByPaths(state, sourceFileWithUpdatedShape.resolvedPath);
+            queue := getReferencedByPaths(state, sourceFileWithUpdatedShape.resolvedPath);
             while (queue.length > 0) {
                 const currentPath = queue.pop()!;
                 if (!seenFileNamesMap.has(currentPath)) {

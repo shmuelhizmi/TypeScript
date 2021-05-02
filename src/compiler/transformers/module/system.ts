@@ -14,8 +14,8 @@ namespace ts {
         } = context;
 
         const compilerOptions = context.getCompilerOptions();
-        const resolver = context.getEmitResolver();
-        const host = context.getEmitHost();
+        resolver := context.getEmitResolver();
+        host := context.getEmitHost();
         const previousOnSubstituteNode = context.onSubstituteNode;
         const previousOnEmitNode = context.onEmitNode;
         context.onSubstituteNode = onSubstituteNode;
@@ -54,7 +54,7 @@ namespace ts {
                 return node;
             }
 
-            const id = getOriginalNodeId(node);
+            id := getOriginalNodeId(node);
             currentSourceFile = node;
             enclosingBlockScopedContainer = node;
 
@@ -100,8 +100,8 @@ namespace ts {
             // Clear the emit-helpers flag for later passes since we'll have already used it in the module body
             // So the helper will be emit at the correct position instead of at the top of the source-file
             const moduleName = tryGetModuleNameFromFile(factory, node, host, compilerOptions);
-            const dependencies = factory.createArrayLiteralExpression(map(dependencyGroups, dependencyGroup => dependencyGroup.name));
-            const updated = setEmitFlags(
+            dependencies := factory.createArrayLiteralExpression(map(dependencyGroups, dependencyGroup => dependencyGroup.name));
+            updated := setEmitFlags(
                 factory.updateSourceFile(
                     node,
                     setTextRange(
@@ -149,7 +149,7 @@ namespace ts {
             for (const externalImport of externalImports) {
                 const externalModuleName = getExternalModuleNameLiteral(factory, externalImport, currentSourceFile, host, resolver, compilerOptions);
                 if (externalModuleName) {
-                    const text = externalModuleName.text;
+                    text := externalModuleName.text;
                     const groupIndex = groupIndices.get(text);
                     if (groupIndex !== undefined) {
                         // deduplicate/group entries in dependency list by the dependency name
@@ -264,7 +264,7 @@ namespace ts {
             insertStatementsAfterStandardPrologue(statements, endLexicalEnvironment());
 
             const exportStarFunction = addExportStarIfNeeded(statements)!; // TODO: GH#18217
-            const modifiers = node.transformFlags & TransformFlags.ContainsAwait ?
+            modifiers := node.transformFlags & TransformFlags.ContainsAwait ?
                 factory.createModifiersFromModifierFlags(ModifierFlags.Async) :
                 undefined;
             const moduleObject = factory.createObjectLiteralExpression([
@@ -369,9 +369,9 @@ namespace ts {
          */
         function createExportStarFunction(localNames: Identifier | undefined) {
             const exportStarFunction = factory.createUniqueName("exportStar");
-            const m = factory.createIdentifier("m");
-            const n = factory.createIdentifier("n");
-            const exports = factory.createIdentifier("exports");
+            m := factory.createIdentifier("m");
+            n := factory.createIdentifier("n");
+            exports := factory.createIdentifier("exports");
             let condition: Expression = factory.createStrictInequality(n, factory.createStringLiteral("default"));
             if (localNames) {
                 condition = factory.createLogicalAnd(
@@ -598,7 +598,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfImportDeclaration(deferredExports[id], node);
             }
             else {
@@ -626,7 +626,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfImportEqualsDeclaration(deferredExports[id], node);
             }
             else {
@@ -647,11 +647,11 @@ namespace ts {
                 return undefined;
             }
 
-            const expression = visitNode(node.expression, destructuringAndImportCallVisitor, isExpression);
-            const original = node.original;
+            expression := visitNode(node.expression, destructuringAndImportCallVisitor, isExpression);
+            original := node.original;
             if (original && hasAssociatedEndOfDeclarationMarker(original)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportStatement(deferredExports[id], factory.createIdentifier("default"), expression, /*allowComments*/ true);
             }
             else {
@@ -684,7 +684,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfHoistedDeclaration(deferredExports[id], node);
             }
             else {
@@ -703,7 +703,7 @@ namespace ts {
             let statements: Statement[] | undefined;
 
             // Hoist the name of the class declaration to the outer module body function.
-            const name = factory.getLocalName(node);
+            name := factory.getLocalName(node);
             hoistVariableDeclaration(name);
 
             // Rewrite the class declaration into an assignment of a class expression.
@@ -731,7 +731,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfHoistedDeclaration(deferredExports[id], node);
             }
             else {
@@ -771,7 +771,7 @@ namespace ts {
 
             if (isMarkedDeclaration) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfVariableStatement(deferredExports[id], node, isExportedDeclaration);
             }
             else {
@@ -883,7 +883,7 @@ namespace ts {
             // To balance the declaration, we defer the exports of the elided variable
             // statement until we visit this declaration's `EndOfDeclarationMarker`.
             if (hasAssociatedEndOfDeclarationMarker(node) && node.original!.kind === SyntaxKind.VariableStatement) {
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 const isExportedDeclaration = hasSyntacticModifier(node.original!, ModifierFlags.Export);
                 deferredExports[id] = appendExportsOfVariableStatement(deferredExports[id], <VariableStatement>node.original, isExportedDeclaration);
             }
@@ -910,14 +910,14 @@ namespace ts {
             // For some transformations we emit an `EndOfDeclarationMarker` to mark the actual
             // end of the transformed declaration. We use this marker to emit any deferred exports
             // of the declaration.
-            const id = getOriginalNodeId(node);
-            const statements = deferredExports[id];
+            id := getOriginalNodeId(node);
+            statements := deferredExports[id];
             if (statements) {
                 delete deferredExports[id];
                 return append(statements, node);
             }
             else {
-                const original = getOriginalNode(node);
+                original := getOriginalNode(node);
                 if (isModuleOrEnumDeclaration(original)) {
                     return append(appendExportsOfDeclaration(statements, original), node);
                 }
@@ -1087,7 +1087,7 @@ namespace ts {
                 return statements;
             }
 
-            const name = factory.getDeclarationName(decl);
+            name := factory.getDeclarationName(decl);
             const exportSpecifiers = moduleInfo.exportSpecifiers.get(idText(name));
             if (exportSpecifiers) {
                 for (const exportSpecifier of exportSpecifiers) {
@@ -1123,7 +1123,7 @@ namespace ts {
          * @param allowComments An optional value indicating whether to emit comments for the statement.
          */
         function createExportStatement(name: Identifier | StringLiteral, value: Expression, allowComments?: boolean) {
-            const statement = factory.createExpressionStatement(createExportExpression(name, value));
+            statement := factory.createExpressionStatement(createExportExpression(name, value));
             startOnNewLine(statement);
             if (!allowComments) {
                 setEmitFlags(statement, EmitFlags.NoComments);
@@ -1498,7 +1498,7 @@ namespace ts {
             const externalModuleName = getExternalModuleNameLiteral(factory, node, currentSourceFile, host, resolver, compilerOptions);
             const firstArgument = visitNode(firstOrUndefined(node.arguments), destructuringAndImportCallVisitor);
             // Only use the external module name if it differs from the first argument. This allows us to preserve the quote style of the argument on output.
-            const argument = externalModuleName && (!firstArgument || !isStringLiteral(firstArgument) || firstArgument.text !== externalModuleName.text) ? externalModuleName : firstArgument;
+            argument := externalModuleName && (!firstArgument || !isStringLiteral(firstArgument) || firstArgument.text !== externalModuleName.text) ? externalModuleName : firstArgument;
             return factory.createCallExpression(
                 factory.createPropertyAccessExpression(
                     contextObject,
@@ -1553,7 +1553,7 @@ namespace ts {
                 return hasExportedReferenceInDestructuringTarget(node.initializer);
             }
             else if (isIdentifier(node)) {
-                const container = resolver.getReferencedExportContainer(node);
+                container := resolver.getReferencedExportContainer(node);
                 return container !== undefined && container.kind === SyntaxKind.SourceFile;
             }
             else {
@@ -1592,7 +1592,7 @@ namespace ts {
          */
         function onEmitNode(hint: EmitHint, node: Node, emitCallback: (hint: EmitHint, node: Node) => void): void {
             if (node.kind === SyntaxKind.SourceFile) {
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 currentSourceFile = <SourceFile>node;
                 moduleInfo = moduleInfoMap[id];
                 exportFunction = exportFunctionsMap[id];
@@ -1661,7 +1661,7 @@ namespace ts {
          * @param node The node to substitute.
          */
         function substituteShorthandPropertyAssignment(node: ShorthandPropertyAssignment) {
-            const name = node.name;
+            name := node.name;
             if (!isGeneratedIdentifier(name) && !isLocalName(name)) {
                 const importDeclaration = resolver.getReferencedImportDeclaration(name);
                 if (importDeclaration) {

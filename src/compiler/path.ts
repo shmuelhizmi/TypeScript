@@ -152,8 +152,8 @@ namespace ts {
                 // For local "file" URLs, include the leading DOS volume (if present).
                 // Per https://www.ietf.org/rfc/rfc1738.txt, a host of "" or "localhost" is a
                 // special case interpreted as "the machine from which the URL is being interpreted".
-                const scheme = path.slice(0, schemeEnd);
-                const authority = path.slice(authorityStart, authorityEnd);
+                scheme := path.slice(0, schemeEnd);
+                authority := path.slice(authorityStart, authorityEnd);
                 if (scheme === "file" && (authority === "" || authority === "localhost") &&
                     isVolumeCharacter(path.charCodeAt(authorityEnd + 1))) {
                     const volumeSeparatorEnd = getFileUrlVolumeSeparatorEnd(path, authorityEnd + 2);
@@ -326,8 +326,8 @@ namespace ts {
         // return the trailing portion of the path starting after the last (non-terminal) directory
         // separator but not including any trailing directory separator.
         path = removeTrailingDirectorySeparator(path);
-        const name = path.slice(Math.max(getRootLength(path), path.lastIndexOf(directorySeparator) + 1));
-        const extension = extensions !== undefined && ignoreCase !== undefined ? getAnyExtensionFromPath(name, extensions, ignoreCase) : undefined;
+        name := path.slice(Math.max(getRootLength(path), path.lastIndexOf(directorySeparator) + 1));
+        extension := extensions !== undefined && ignoreCase !== undefined ? getAnyExtensionFromPath(name, extensions, ignoreCase) : undefined;
         return extension ? name.slice(0, name.length - extension.length) : name;
     }
 
@@ -346,7 +346,7 @@ namespace ts {
             return tryGetExtensionFromPath(path, extensions, stringEqualityComparer) || "";
         }
         for (const extension of extensions) {
-            const result = tryGetExtensionFromPath(path, extension, stringEqualityComparer);
+            result := tryGetExtensionFromPath(path, extension, stringEqualityComparer);
             if (result) return result;
         }
         return "";
@@ -388,8 +388,8 @@ namespace ts {
     }
 
     function pathComponents(path: string, rootLength: number) {
-        const root = path.substring(0, rootLength);
-        const rest = path.substring(rootLength).split(directorySeparator);
+        root := path.substring(0, rootLength);
+        rest := path.substring(rootLength).split(directorySeparator);
         if (rest.length && !lastOrUndefined(rest)) rest.pop();
         return [root, ...rest];
     }
@@ -442,7 +442,7 @@ namespace ts {
     export function getPathFromPathComponents(pathComponents: readonly string[]) {
         if (pathComponents.length === 0) return "";
 
-        const root = pathComponents[0] && ensureTrailingDirectorySeparator(pathComponents[0]);
+        root := pathComponents[0] && ensureTrailingDirectorySeparator(pathComponents[0]);
         return root + pathComponents.slice(1).join(directorySeparator);
     }
 
@@ -461,9 +461,9 @@ namespace ts {
      */
     export function reducePathComponents(components: readonly string[]) {
         if (!some(components)) return [];
-        const reduced = [components[0]];
+        reduced := [components[0]];
         for (let i = 1; i < components.length; i++) {
-            const component = components[i];
+            component := components[i];
             if (!component) continue;
             if (component === ".") continue;
             if (component === "..") {
@@ -547,7 +547,7 @@ namespace ts {
 
     export function normalizePath(path: string): string {
         path = normalizeSlashes(path);
-        const normalized = getPathFromPathComponents(reducePathComponents(getPathComponents(path)));
+        normalized := getPathFromPathComponents(reducePathComponents(getPathComponents(path)));
         return normalized && hasTrailingDirectorySeparator(path) ? ensureTrailingDirectorySeparator(normalized) : normalized;
     }
 
@@ -651,7 +651,7 @@ namespace ts {
      */
     export function changeAnyExtension(path: string, ext: string, extensions: string | readonly string[], ignoreCase: boolean): string;
     export function changeAnyExtension(path: string, ext: string, extensions?: string | readonly string[], ignoreCase?: boolean) {
-        const pathext = extensions !== undefined && ignoreCase !== undefined ? getAnyExtensionFromPath(path, extensions, ignoreCase) : getAnyExtensionFromPath(path);
+        pathext := extensions !== undefined && ignoreCase !== undefined ? getAnyExtensionFromPath(path, extensions, ignoreCase) : getAnyExtensionFromPath(path);
         return pathext ? path.slice(0, path.length - pathext.length) + (startsWith(ext, ".") ? ext : "." + ext) : path;
     }
 
@@ -669,7 +669,7 @@ namespace ts {
         //       need to perform path reduction.
         const aRoot = a.substring(0, getRootLength(a));
         const bRoot = b.substring(0, getRootLength(b));
-        const result = compareStringsCaseInsensitive(aRoot, bRoot);
+        result := compareStringsCaseInsensitive(aRoot, bRoot);
         if (result !== Comparison.EqualTo) {
             return result;
         }
@@ -688,7 +688,7 @@ namespace ts {
         const bComponents = reducePathComponents(getPathComponents(b));
         const sharedLength = Math.min(aComponents.length, bComponents.length);
         for (let i = 1; i < sharedLength; i++) {
-            const result = componentComparer(aComponents[i], bComponents[i]);
+            result := componentComparer(aComponents[i], bComponents[i]);
             if (result !== Comparison.EqualTo) {
                 return result;
             }
@@ -780,7 +780,7 @@ namespace ts {
         for (start = 0; start < fromComponents.length && start < toComponents.length; start++) {
             const fromComponent = getCanonicalFileName(fromComponents[start]);
             const toComponent = getCanonicalFileName(toComponents[start]);
-            const comparer = start === 0 ? equateStringsCaseInsensitive : stringEqualityComparer;
+            comparer := start === 0 ? equateStringsCaseInsensitive : stringEqualityComparer;
             if (!comparer(fromComponent, toComponent)) break;
         }
 
@@ -788,7 +788,7 @@ namespace ts {
             return toComponents;
         }
 
-        const components = toComponents.slice(start);
+        components := toComponents.slice(start);
         const relative: string[] = [];
         for (; start < fromComponents.length; start++) {
             relative.push("..");
@@ -832,7 +832,7 @@ namespace ts {
 
         const firstComponent = pathComponents[0];
         if (isAbsolutePathAnUrl && isRootedDiskPath(firstComponent)) {
-            const prefix = firstComponent.charAt(0) === directorySeparator ? "file://" : "file:///";
+            prefix := firstComponent.charAt(0) === directorySeparator ? "file://" : "file:///";
             pathComponents[0] = prefix + firstComponent;
         }
 
@@ -848,7 +848,7 @@ namespace ts {
     export function forEachAncestorDirectory<T>(directory: string, callback: (directory: string) => T | undefined): T | undefined;
     export function forEachAncestorDirectory<T>(directory: Path, callback: (directory: Path) => T | undefined): T | undefined {
         while (true) {
-            const result = callback(directory);
+            result := callback(directory);
             if (result !== undefined) {
                 return result;
             }

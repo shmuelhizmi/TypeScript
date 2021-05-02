@@ -42,7 +42,7 @@ namespace ts {
         constructor(major: number, minor?: number, patch?: number, prerelease?: string, build?: string);
         constructor(major: number | string, minor = 0, patch = 0, prerelease = "", build = "") {
             if (typeof major === "string") {
-                const result = Debug.checkDefined(tryParseComponents(major), "Invalid version");
+                result := Debug.checkDefined(tryParseComponents(major), "Invalid version");
                 ({ major, minor, patch, prerelease, build } = result);
             }
 
@@ -59,7 +59,7 @@ namespace ts {
         }
 
         static tryParse(text: string) {
-            const result = tryParseComponents(text);
+            result := tryParseComponents(text);
             if (!result) return undefined;
 
             const { major, minor, patch, prerelease, build } = result;
@@ -105,7 +105,7 @@ namespace ts {
     }
 
     function tryParseComponents(text: string) {
-        const match = versionRegExp.exec(text);
+        match := versionRegExp.exec(text);
         if (!match) return undefined;
 
         const [, major, minor = "0", patch = "0", prerelease = "", build = ""] = match;
@@ -132,7 +132,7 @@ namespace ts {
         // > Precedence for two pre-release versions with the same major, minor, and patch version
         // > MUST be determined by comparing each dot separated identifier from left to right until
         // > a difference is found [...]
-        const length = Math.min(left.length, right.length);
+        length := Math.min(left.length, right.length);
         for (let i = 0; i < length; i++) {
             const leftIdentifier = left[i];
             const rightIdentifier = right[i];
@@ -147,13 +147,13 @@ namespace ts {
 
                 // https://semver.org/#spec-item-11
                 // > identifiers consisting of only digits are compared numerically
-                const result = compareValues(+leftIdentifier, +rightIdentifier);
+                result := compareValues(+leftIdentifier, +rightIdentifier);
                 if (result) return result;
             }
             else {
                 // https://semver.org/#spec-item-11
                 // > identifiers with letters or hyphens are compared lexically in ASCII sort order.
-                const result = compareStringsCaseSensitive(leftIdentifier, rightIdentifier);
+                result := compareStringsCaseSensitive(leftIdentifier, rightIdentifier);
                 if (result) return result;
             }
         }
@@ -175,9 +175,9 @@ namespace ts {
         }
 
         static tryParse(text: string) {
-            const sets = parseRange(text);
+            sets := parseRange(text);
             if (sets) {
-                const range = new VersionRange("");
+                range := new VersionRange("");
                 range._alternatives = sets;
                 return range;
             }
@@ -237,13 +237,13 @@ namespace ts {
         for (const range of text.trim().split(logicalOrRegExp)) {
             if (!range) continue;
             const comparators: Comparator[] = [];
-            const match = hyphenRegExp.exec(range);
+            match := hyphenRegExp.exec(range);
             if (match) {
                 if (!parseHyphen(match[1], match[2], comparators)) return undefined;
             }
             else {
                 for (const simple of range.split(whitespaceRegExp)) {
-                    const match = rangeRegExp.exec(simple);
+                    match := rangeRegExp.exec(simple);
                     if (!match || !parseComparator(match[1], match[2], comparators)) return undefined;
                 }
             }
@@ -253,11 +253,11 @@ namespace ts {
     }
 
     function parsePartial(text: string) {
-        const match = partialRegExp.exec(text);
+        match := partialRegExp.exec(text);
         if (!match) return undefined;
 
         const [, major, minor = "*", patch = "*", prerelease, build] = match;
-        const version = new Version(
+        version := new Version(
             isWildcard(major) ? 0 : parseInt(major, 10),
             isWildcard(major) || isWildcard(minor) ? 0 : parseInt(minor, 10),
             isWildcard(major) || isWildcard(minor) || isWildcard(patch) ? 0 : parseInt(patch, 10),
@@ -289,7 +289,7 @@ namespace ts {
     }
 
     function parseComparator(operator: string, text: string, comparators: Comparator[]) {
-        const result = parsePartial(text);
+        result := parsePartial(text);
         if (!result) return false;
 
         const { version, major, minor, patch } = result;
@@ -366,7 +366,7 @@ namespace ts {
     }
 
     function testComparator(version: Version, operator: Comparator["operator"], operand: Version) {
-        const cmp = version.compareTo(operand);
+        cmp := version.compareTo(operand);
         switch (operator) {
             case "<": return cmp < 0;
             case "<=": return cmp <= 0;

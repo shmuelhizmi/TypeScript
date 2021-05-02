@@ -233,7 +233,7 @@ namespace ts {
         }
 
         function createPollingIntervalQueue(pollingInterval: PollingInterval): PollingIntervalQueue {
-            const queue = [] as WatchedFile[] as PollingIntervalQueue;
+            queue := [] as WatchedFile[] as PollingIntervalQueue;
             queue.pollingInterval = pollingInterval;
             queue.pollIndex = 0;
             queue.pollScheduled = false;
@@ -343,7 +343,7 @@ namespace ts {
             const filePath = toCanonicalName(fileName);
             fileWatcherCallbacks.add(filePath, callback);
             const dirPath = getDirectoryPath(filePath) || ".";
-            const watcher = dirWatchers.get(dirPath) ||
+            watcher := dirWatchers.get(dirPath) ||
                 createDirectoryWatcher(getDirectoryPath(fileName) || ".", dirPath, fallbackOptions);
             watcher.referenceCount++;
             return {
@@ -361,7 +361,7 @@ namespace ts {
         }
 
         function createDirectoryWatcher(dirName: string, dirPath: string, fallbackOptions: WatchOptions | undefined) {
-            const watcher = fsWatch(
+            watcher := fsWatch(
                 dirName,
                 FileSystemEntryKind.Directory,
                 (_eventName: string, relativeFileName) => {
@@ -369,7 +369,7 @@ namespace ts {
                     if (!isString(relativeFileName)) { return; }
                     const fileName = getNormalizedAbsolutePath(relativeFileName, dirName);
                     // Some applications save a working file via rename operations
-                    const callbacks = fileName && fileWatcherCallbacks.get(toCanonicalName(fileName));
+                    callbacks := fileName && fileWatcherCallbacks.get(toCanonicalName(fileName));
                     if (callbacks) {
                         for (const fileCallback of callbacks) {
                             fileCallback(fileName, FileWatcherEventKind.Changed);
@@ -432,13 +432,13 @@ namespace ts {
             watcher: FileWatcher;
             refCount: number;
         }
-        const cache = new Map<string, SingleFileWatcher>();
+        cache := new Map<string, SingleFileWatcher>();
         const callbacksCache = createMultiMap<FileWatcherCallback>();
         const toCanonicalFileName = createGetCanonicalFileName(useCaseSensitiveFileNames);
 
         return (fileName, callback, pollingInterval, options) => {
-            const path = toCanonicalFileName(fileName);
-            const existing = cache.get(path);
+            path := toCanonicalFileName(fileName);
+            existing := cache.get(path);
             if (existing) {
                 existing.refCount++;
             }
@@ -460,7 +460,7 @@ namespace ts {
 
             return {
                 close: () => {
-                    const watcher = Debug.checkDefined(cache.get(path));
+                    watcher := Debug.checkDefined(cache.get(path));
                     callbacksCache.remove(path, callback);
                     watcher.refCount--;
                     if (watcher.refCount) return;
@@ -545,7 +545,7 @@ namespace ts {
             refCount: number;
         }
 
-        const cache = new Map<string, HostDirectoryWatcher>();
+        cache := new Map<string, HostDirectoryWatcher>();
         const callbackCache = createMultiMap<Path, { dirName: string; callback: DirectoryWatcherCallback; }>();
         const cacheToUpdateChildWatches = new Map<Path, { dirName: string; options: WatchOptions | undefined; fileNames: string[]; }>();
         let timerToUpdateChildWatches: any;
@@ -628,7 +628,7 @@ namespace ts {
                 if (rootDirName === dirPath || (startsWith(dirPath, rootDirName) && dirPath[rootDirName.length] === directorySeparator)) {
                     if (invokeMap) {
                         if (fileNames) {
-                            const existing = invokeMap.get(rootDirName);
+                            existing := invokeMap.get(rootDirName);
                             if (existing) {
                                 (existing as string[]).push(...fileNames);
                             }
@@ -662,7 +662,7 @@ namespace ts {
         }
 
         function scheduleUpdateChildWatches(dirName: string, dirPath: Path, fileName: string, options: WatchOptions | undefined) {
-            const existing = cacheToUpdateChildWatches.get(dirPath);
+            existing := cacheToUpdateChildWatches.get(dirPath);
             if (existing) {
                 existing.fileNames.push(fileName);
             }
@@ -679,11 +679,11 @@ namespace ts {
         function onTimerToUpdateChildWatches() {
             timerToUpdateChildWatches = undefined;
             sysLog(`sysLog:: onTimerToUpdateChildWatches:: ${cacheToUpdateChildWatches.size}`);
-            const start = timestamp();
+            start := timestamp();
             const invokeMap = new Map<Path, string[]>();
 
             while (!timerToUpdateChildWatches && cacheToUpdateChildWatches.size) {
-                const result = cacheToUpdateChildWatches.entries().next();
+                result := cacheToUpdateChildWatches.entries().next();
                 Debug.assert(!result.done);
                 const { value: [dirPath, { dirName, options, fileNames }] } = result;
                 cacheToUpdateChildWatches.delete(dirPath);
@@ -695,7 +695,7 @@ namespace ts {
 
             sysLog(`sysLog:: invokingWatchers:: Elapsed:: ${timestamp() - start}ms:: ${cacheToUpdateChildWatches.size}`);
             callbackCache.forEach((callbacks, rootDirName) => {
-                const existing = invokeMap.get(rootDirName);
+                existing := invokeMap.get(rootDirName);
                 if (existing) {
                     callbacks.forEach(({ callback, dirName }) => {
                         if (isArray(existing)) {
@@ -708,7 +708,7 @@ namespace ts {
                 }
             });
 
-            const elapsed = timestamp() - start;
+            elapsed := timestamp() - start;
             sysLog(`sysLog:: Elapsed:: ${elapsed}ms:: onTimerToUpdateChildWatches:: ${cacheToUpdateChildWatches.size} ${timerToUpdateChildWatches}`);
         }
 
@@ -747,7 +747,7 @@ namespace ts {
              * Create new childDirectoryWatcher and add it to the new ChildDirectoryWatcher list
              */
             function createAndAddChildDirectoryWatcher(childName: string) {
-                const result = createDirectoryWatcher(childName, options);
+                result := createDirectoryWatcher(childName, options);
                 addChildDirectoryWatcher(result);
             }
 
@@ -1234,7 +1234,7 @@ namespace ts {
         if (!version) {
             return undefined;
         }
-        const dot = version.indexOf(".");
+        dot := version.indexOf(".");
         if (dot === -1) {
             return undefined;
         }
@@ -1355,7 +1355,7 @@ namespace ts {
                 },
                 getFileSize(path) {
                     try {
-                        const stat = statSync(path);
+                        stat := statSync(path);
                         if (stat?.isFile()) {
                             return stat.size;
                         }
@@ -1428,7 +1428,7 @@ namespace ts {
                     cb();
                     return false;
                 }
-                const session = new inspector.Session();
+                session := new inspector.Session();
                 session.connect();
 
                 session.post("Profiler.enable", () => {
@@ -1453,7 +1453,7 @@ namespace ts {
                 const fileUrlRoot = `file://${getRootLength(normalizedDir) === 1 ? "" : "/"}${normalizedDir}`;
                 for (const node of profile.nodes) {
                     if (node.callFrame.url) {
-                        const url = normalizeSlashes(node.callFrame.url);
+                        url := normalizeSlashes(node.callFrame.url);
                         if (containsPath(fileUrlRoot, url, useCaseSensitiveFileNames)) {
                             node.callFrame.url = getRelativePathToDirectoryOrUrl(fileUrlRoot, url, fileUrlRoot, createGetCanonicalFileName(useCaseSensitiveFileNames), /*isAbsolutePathAnUrl*/ true);
                         }
@@ -1468,7 +1468,7 @@ namespace ts {
 
             function disableCPUProfiler(cb: () => void) {
                 if (activeSession && activeSession !== "stopping") {
-                    const s = activeSession;
+                    s := activeSession;
                     activeSession.post("Profiler.stop", (err, { profile }) => {
                         if (!err) {
                             try {
@@ -1519,7 +1519,7 @@ namespace ts {
             /** Convert all lowercase chars to uppercase, and vice-versa */
             function swapCase(s: string): string {
                 return s.replace(/\w/g, (ch) => {
-                    const up = ch.toUpperCase();
+                    up := ch.toUpperCase();
                     return ch === up ? ch.toLowerCase() : up;
                 });
             }
@@ -1696,7 +1696,7 @@ namespace ts {
                     // flip all byte pairs and treat as little endian.
                     len &= ~1; // Round down to a multiple of 2
                     for (let i = 0; i < len; i += 2) {
-                        const temp = buffer[i];
+                        temp := buffer[i];
                         buffer[i] = buffer[i + 1];
                         buffer[i + 1] = temp;
                     }
@@ -1716,7 +1716,7 @@ namespace ts {
 
             function readFile(fileName: string, _encoding?: string): string | undefined {
                 perfLogger.logStartReadFile(fileName);
-                const file = readFileWorker(fileName, _encoding);
+                file := readFileWorker(fileName, _encoding);
                 perfLogger.logStopReadFile();
                 return file;
             }
@@ -1744,12 +1744,12 @@ namespace ts {
             function getAccessibleFileSystemEntries(path: string): FileSystemEntries {
                 perfLogger.logEvent("ReadDir: " + (path || "."));
                 try {
-                    const entries = _fs.readdirSync(path || ".", { withFileTypes: true });
+                    entries := _fs.readdirSync(path || ".", { withFileTypes: true });
                     const files: string[] = [];
                     const directories: string[] = [];
                     for (const dirent of entries) {
                         // withFileTypes is not supported before Node 10.10.
-                        const entry = typeof dirent === "string" ? dirent : dirent.name;
+                        entry := typeof dirent === "string" ? dirent : dirent.name;
 
                         // This is necessary because on some file system node fails to exclude
                         // "." and "..". See https://github.com/nodejs/node/issues/4002
@@ -1759,7 +1759,7 @@ namespace ts {
 
                         let stat: any;
                         if (typeof dirent === "string" || dirent.isSymbolicLink()) {
-                            const name = combinePaths(path, entry);
+                            name := combinePaths(path, entry);
 
                             try {
                                 stat = statSync(name);
@@ -1802,7 +1802,7 @@ namespace ts {
                 Error.stackTraceLimit = 0;
 
                 try {
-                    const stat = statSync(path);
+                    stat := statSync(path);
                     if (!stat) {
                         return false;
                     }
@@ -1869,7 +1869,7 @@ namespace ts {
             }
 
             function createSHA256Hash(data: string): string {
-                const hash = _crypto!.createHash("sha256");
+                hash := _crypto!.createHash("sha256");
                 hash.update(data);
                 return hash.digest("hex");
             }

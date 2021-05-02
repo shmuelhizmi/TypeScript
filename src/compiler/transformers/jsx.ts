@@ -21,7 +21,7 @@ namespace ts {
             if (currentFileState.filenameDeclaration) {
                 return currentFileState.filenameDeclaration.name;
             }
-            const declaration = factory.createVariableDeclaration(factory.createUniqueName("_jsxFileName", GeneratedIdentifierFlags.Optimistic | GeneratedIdentifierFlags.FileLevel), /*exclaimationToken*/ undefined, /*type*/ undefined, factory.createStringLiteral(currentSourceFile.fileName));
+            declaration := factory.createVariableDeclaration(factory.createUniqueName("_jsxFileName", GeneratedIdentifierFlags.Optimistic | GeneratedIdentifierFlags.FileLevel), /*exclaimationToken*/ undefined, /*type*/ undefined, factory.createStringLiteral(currentSourceFile.fileName));
             currentFileState.filenameDeclaration = declaration as VariableDeclaration & { name: Identifier };
             return currentFileState.filenameDeclaration.name;
         }
@@ -43,7 +43,7 @@ namespace ts {
             const importSource = name === "createElement"
                 ? currentFileState.importSpecifier!
                 : getJSXRuntimeImport(currentFileState.importSpecifier, compilerOptions)!;
-            const existing = currentFileState.utilizedImplicitRuntimeImports?.get(importSource)?.get(name);
+            existing := currentFileState.utilizedImplicitRuntimeImports?.get(importSource)?.get(name);
             if (existing) {
                 return existing.name;
             }
@@ -56,7 +56,7 @@ namespace ts {
                 currentFileState.utilizedImplicitRuntimeImports.set(importSource, specifierSourceImports);
             }
             const generatedName = factory.createUniqueName(`_${name}`, GeneratedIdentifierFlags.Optimistic | GeneratedIdentifierFlags.FileLevel | GeneratedIdentifierFlags.AllowNameSubstitution);
-            const specifier = factory.createImportSpecifier(factory.createIdentifier(name), generatedName);
+            specifier := factory.createImportSpecifier(factory.createIdentifier(name), generatedName);
             generatedName.generatedImportReference = specifier;
             specifierSourceImports.set(name, specifier);
             return generatedName;
@@ -202,12 +202,12 @@ namespace ts {
         function convertJsxChildrenToChildrenPropObject(children: readonly JsxChild[]) {
             const nonWhitespaceChildren = getSemanticJsxChildren(children);
             if (length(nonWhitespaceChildren) === 1) {
-                const result = transformJsxChildToExpression(nonWhitespaceChildren[0]);
+                result := transformJsxChildToExpression(nonWhitespaceChildren[0]);
                 return result && factory.createObjectLiteralExpression([
                     factory.createPropertyAssignment("children", result)
                 ]);
             }
-            const result = mapDefined(children, transformJsxChildToExpression);
+            result := mapDefined(children, transformJsxChildToExpression);
             return !result.length ? undefined : factory.createObjectLiteralExpression([
                 factory.createPropertyAssignment("children", factory.createArrayLiteralExpression(result))
             ]);
@@ -217,7 +217,7 @@ namespace ts {
             const tagName = getTagName(node);
             let objectProperties: Expression;
             const keyAttr = find(node.attributes.properties, p => !!p.name && isIdentifier(p.name) && p.name.escapedText === "key") as JsxAttribute | undefined;
-            const attrs = keyAttr ? filter(node.attributes.properties, p => p !== keyAttr) : node.attributes.properties;
+            attrs := keyAttr ? filter(node.attributes.properties, p => p !== keyAttr) : node.attributes.properties;
 
             let segments: Expression[] = [];
             if (attrs.length) {
@@ -237,7 +237,7 @@ namespace ts {
                 }
             }
             if (children && children.length) {
-                const result = convertJsxChildrenToChildrenPropObject(children);
+                result := convertJsxChildrenToChildrenPropObject(children);
                 if (result) {
                     segments.push(result);
                 }
@@ -274,7 +274,7 @@ namespace ts {
                     args.push(factory.createThis());
                 }
             }
-            const element = setTextRange(factory.createCallExpression(getJsxFactoryCallee(childrenLength), /*typeArguments*/ undefined, args), location);
+            element := setTextRange(factory.createCallExpression(getJsxFactoryCallee(childrenLength), /*typeArguments*/ undefined, args), location);
 
             if (isChild) {
                 startOnNewLine(element);
@@ -286,13 +286,13 @@ namespace ts {
         function visitJsxOpeningLikeElementCreateElement(node: JsxOpeningLikeElement, children: readonly JsxChild[] | undefined, isChild: boolean, location: TextRange) {
             const tagName = getTagName(node);
             let objectProperties: Expression | undefined;
-            const attrs = node.attributes.properties;
+            attrs := node.attributes.properties;
             if (attrs.length === 0) {
                 objectProperties = factory.createNull();
                 // When there are no attributes, React wants "null"
             }
             else {
-                const target = compilerOptions.target;
+                target := compilerOptions.target;
                 if (target && target >= ScriptTarget.ES2018) {
                     objectProperties = factory.createObjectLiteralExpression(
                         flatten<SpreadAssignment | PropertyAssignment>(
@@ -305,7 +305,7 @@ namespace ts {
                 else {
                     // Map spans of JsxAttribute nodes into object literals and spans
                     // of JsxSpreadAttribute nodes into expressions.
-                    const segments = flatten<Expression | ObjectLiteralExpression>(
+                    segments := flatten<Expression | ObjectLiteralExpression>(
                         spanMap(attrs, isJsxSpreadAttribute, (attrs, isSpread) => isSpread
                             ? map(attrs, transformJsxSpreadAttributeToExpression)
                             : factory.createObjectLiteralExpression(map(attrs, transformJsxAttributeToObjectLiteralElement))
@@ -327,7 +327,7 @@ namespace ts {
                 }
             }
 
-            const callee = currentFileState.importSpecifier === undefined
+            callee := currentFileState.importSpecifier === undefined
                 ? createJsxFactoryExpression(
                     factory,
                     context.getEmitResolver().getJsxFactoryEntity(currentSourceFile),
@@ -336,7 +336,7 @@ namespace ts {
                 )
                 : getImplicitImportForName("createElement");
 
-            const element = createExpressionForJsxElement(
+            element := createExpressionForJsxElement(
                 factory,
                 callee,
                 tagName,
@@ -355,7 +355,7 @@ namespace ts {
         function visitJsxOpeningFragmentJSX(_node: JsxOpeningFragment, children: readonly JsxChild[], isChild: boolean, location: TextRange) {
             let childrenProps: Expression | undefined;
             if (children && children.length) {
-                const result = convertJsxChildrenToChildrenPropObject(children);
+                result := convertJsxChildrenToChildrenPropObject(children);
                 if (result) {
                     childrenProps = result;
                 }
@@ -371,7 +371,7 @@ namespace ts {
         }
 
         function visitJsxOpeningFragmentCreateElement(node: JsxOpeningFragment, children: readonly JsxChild[], isChild: boolean, location: TextRange) {
-            const element = createExpressionForJsxFragment(
+            element := createExpressionForJsxFragment(
                 factory,
                 context.getEmitResolver().getJsxFactoryEntity(currentSourceFile),
                 context.getEmitResolver().getJsxFragmentFactoryEntity(currentSourceFile),
@@ -397,8 +397,8 @@ namespace ts {
         }
 
         function transformJsxAttributeToObjectLiteralElement(node: JsxAttribute) {
-            const name = getAttributeName(node);
-            const expression = transformJsxAttributeInitializer(node.initializer);
+            name := getAttributeName(node);
+            expression := transformJsxAttributeInitializer(node.initializer);
             return factory.createPropertyAssignment(name, expression);
         }
 
@@ -410,7 +410,7 @@ namespace ts {
                 // Always recreate the literal to escape any escape sequences or newlines which may be in the original jsx string and which
                 // Need to be escaped to be handled correctly in a normal string
                 const singleQuote = node.singleQuote !== undefined ? node.singleQuote : !isStringDoubleQuoted(node, currentSourceFile);
-                const literal = factory.createStringLiteral(tryDecodeEntities(node.text) || node.text, singleQuote);
+                literal := factory.createStringLiteral(tryDecodeEntities(node.text) || node.text, singleQuote);
                 return setTextRange(literal, node);
             }
             else if (node.kind === SyntaxKind.JsxExpression) {
@@ -425,7 +425,7 @@ namespace ts {
         }
 
         function visitJsxText(node: JsxText): StringLiteral | undefined {
-            const fixed = fixupWhitespaceAndDecodeEntities(node.text);
+            fixed := fixupWhitespaceAndDecodeEntities(node.text);
             return fixed === undefined ? undefined : factory.createStringLiteral(fixed);
         }
 
@@ -455,7 +455,7 @@ namespace ts {
             // but lastNonWhitespace = -1 as a special flag to indicate that we *don't* include the line if it's all whitespace.
 
             for (let i = 0; i < text.length; i++) {
-                const c = text.charCodeAt(i);
+                c := text.charCodeAt(i);
                 if (isLineBreak(c)) {
                     // If we've seen any non-whitespace characters on this line, add the 'trim' of the line.
                     // (lastNonWhitespace === -1 is a special flag to detect whether the first line is all whitespace.)
@@ -485,7 +485,7 @@ namespace ts {
         function addLineOfJsxText(acc: string | undefined, trimmedLine: string): string {
             // We do not escape the string here as that is handled by the printer
             // when it emits the literal. We do, however, need to decode JSX entities.
-            const decoded = decodeEntities(trimmedLine);
+            decoded := decodeEntities(trimmedLine);
             return acc === undefined ? decoded : acc + " " + decoded;
         }
 
@@ -502,7 +502,7 @@ namespace ts {
                     return utf16EncodeAsString(parseInt(hex, 16));
                 }
                 else {
-                    const ch = entities.get(word);
+                    ch := entities.get(word);
                     // If this is not a valid entity, then just use `match` (replace it with itself, i.e. don't replace)
                     return ch ? utf16EncodeAsString(ch) : match;
                 }
@@ -511,7 +511,7 @@ namespace ts {
 
         /** Like `decodeEntities` but returns `undefined` if there were no entities to decode. */
         function tryDecodeEntities(text: string): string | undefined {
-            const decoded = decodeEntities(text);
+            decoded := decodeEntities(text);
             return decoded === text ? undefined : decoded;
         }
 
@@ -520,7 +520,7 @@ namespace ts {
                 return getTagName(node.openingElement);
             }
             else {
-                const name = node.tagName;
+                name := node.tagName;
                 if (isIdentifier(name) && isIntrinsicJsxName(name.escapedText)) {
                     return factory.createStringLiteral(idText(name));
                 }
@@ -536,8 +536,8 @@ namespace ts {
          * about keywords, just non-identifier characters
          */
         function getAttributeName(node: JsxAttribute): StringLiteral | Identifier {
-            const name = node.name;
-            const text = idText(name);
+            name := node.name;
+            text := idText(name);
             if (/^[A-Za-z_]\w*$/.test(text)) {
                 return name;
             }
@@ -551,7 +551,7 @@ namespace ts {
         }
     }
 
-    const entities = new Map(getEntries({
+    entities := new Map(getEntries({
         quot: 0x0022,
         amp: 0x0026,
         apos: 0x0027,

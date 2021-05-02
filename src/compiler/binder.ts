@@ -30,7 +30,7 @@ namespace ts {
             return visited.get(nodeId) || ModuleInstanceState.NonInstantiated;
         }
         visited.set(nodeId, undefined);
-        const result = getModuleInstanceStateWorker(node, visited);
+        result := getModuleInstanceStateWorker(node, visited);
         visited.set(nodeId, result);
         return result;
     }
@@ -108,11 +108,11 @@ namespace ts {
     }
 
     function getModuleInstanceStateForAliasTarget(specifier: ExportSpecifier, visited: ESMap<number, ModuleInstanceState | undefined>) {
-        const name = specifier.propertyName || specifier.name;
+        name := specifier.propertyName || specifier.name;
         let p: Node | undefined = specifier.parent;
         while (p) {
             if (isBlock(p) || isModuleBlock(p) || isSourceFile(p)) {
-                const statements = p.statements;
+                statements := p.statements;
                 let found: ModuleInstanceState | undefined;
                 for (const statement of statements) {
                     if (nodeHasName(statement, name)) {
@@ -120,7 +120,7 @@ namespace ts {
                             setParent(statement, p);
                             setParentRecursive(statement, /*incremental*/ false);
                         }
-                        const state = getModuleInstanceStateCached(statement, visited);
+                        state := getModuleInstanceStateCached(statement, visited);
                         if (found === undefined || state > found) {
                             found = state;
                         }
@@ -171,7 +171,7 @@ namespace ts {
         return node;
     }
 
-    const binder = createBinder();
+    binder := createBinder();
 
     export function bindSourceFile(file: SourceFile, options: CompilerOptions) {
         tracing?.push(tracing.Phase.Bind, "bindSourceFile", { path: file.path }, /*separateBeginAndEnd*/ true);
@@ -330,7 +330,7 @@ namespace ts {
                 return (<ExportAssignment>node).isExportEquals ? InternalSymbolName.ExportEquals : InternalSymbolName.Default;
             }
 
-            const name = getNameOfDeclaration(node);
+            name := getNameOfDeclaration(node);
             if (name) {
                 if (isAmbientModule(node)) {
                     const moduleName = getTextOfIdentifierOrLiteral(name as Identifier | StringLiteral);
@@ -393,7 +393,7 @@ namespace ts {
                     // without names can only come from JSDocFunctionTypes.
                     Debug.assert(node.parent.kind === SyntaxKind.JSDocFunctionType, "Impossible parameter parent kind", () => `parent is: ${(ts as any).SyntaxKind ? (ts as any).SyntaxKind[node.parent.kind] : node.parent.kind}, expected JSDocFunctionType`);
                     const functionType = <JSDocFunctionType>node.parent;
-                    const index = functionType.parameters.indexOf(node as ParameterDeclaration);
+                    index := functionType.parameters.indexOf(node as ParameterDeclaration);
                     return "arg" + index as __String;
             }
         }
@@ -416,7 +416,7 @@ namespace ts {
             const isDefaultExport = hasSyntacticModifier(node, ModifierFlags.Default) || isExportSpecifier(node) && node.name.escapedText === "default";
 
             // The exported symbol for an export default function/class node is always named "default"
-            const name = isDefaultExport && parent ? InternalSymbolName.Default : getDeclarationName(node);
+            name := isDefaultExport && parent ? InternalSymbolName.Default : getDeclarationName(node);
 
             let symbol: Symbol | undefined;
             if (name === undefined) {
@@ -515,8 +515,8 @@ namespace ts {
 
                         const declarationName = getNameOfDeclaration(node) || node;
                         forEach(symbol.declarations, (declaration, index) => {
-                            const decl = getNameOfDeclaration(declaration) || declaration;
-                            const diag = createDiagnosticForNode(decl, message, messageNeedsName ? getDisplayName(declaration) : undefined);
+                            decl := getNameOfDeclaration(declaration) || declaration;
+                            diag := createDiagnosticForNode(decl, message, messageNeedsName ? getDisplayName(declaration) : undefined);
                             file.bindDiagnostics.push(
                                 multipleDefaultExports ? addRelatedInfo(diag, createDiagnosticForNode(declarationName, index === 0 ? Diagnostics.Another_export_default_is_here : Diagnostics.and_here)) : diag
                             );
@@ -525,7 +525,7 @@ namespace ts {
                             }
                         });
 
-                        const diag = createDiagnosticForNode(declarationName, message, messageNeedsName ? getDisplayName(node) : undefined);
+                        diag := createDiagnosticForNode(declarationName, message, messageNeedsName ? getDisplayName(node) : undefined);
                         file.bindDiagnostics.push(addRelatedInfo(diag, ...relatedInformation));
 
                         symbol = createSymbol(SymbolFlags.None, name);
@@ -576,7 +576,7 @@ namespace ts {
                         return declareSymbol(container.symbol.exports!, container.symbol, node, symbolFlags, symbolExcludes); // No local symbol for an unnamed default!
                     }
                     const exportKind = symbolFlags & SymbolFlags.Value ? SymbolFlags.ExportValue : 0;
-                    const local = declareSymbol(container.locals, /*parent*/ undefined, node, exportKind, symbolExcludes);
+                    local := declareSymbol(container.locals, /*parent*/ undefined, node, exportKind, symbolExcludes);
                     local.exportSymbol = declareSymbol(container.symbol.exports!, container.symbol, node, symbolFlags, symbolExcludes);
                     node.localSymbol = local;
                     return local;
@@ -1006,7 +1006,7 @@ namespace ts {
 
         function createFlowMutation(flags: FlowFlags, antecedent: FlowNode, node: Expression | VariableDeclaration | ArrayBindingElement): FlowNode {
             setFlowNodeReferenced(antecedent);
-            const result = initFlowNode({ flags, antecedent, node });
+            result := initFlowNode({ flags, antecedent, node });
             if (currentExceptionTarget) {
                 addAntecedent(currentExceptionTarget, result);
             }
@@ -1019,7 +1019,7 @@ namespace ts {
         }
 
         function finishFlowLabel(flow: FlowLabel): FlowNode {
-            const antecedents = flow.antecedents;
+            antecedents := flow.antecedents;
             if (!antecedents) {
                 return unreachableFlow;
             }
@@ -1030,7 +1030,7 @@ namespace ts {
         }
 
         function isStatementCondition(node: Node) {
-            const parent = node.parent;
+            parent := node.parent;
             switch (parent.kind) {
                 case SyntaxKind.IfStatement:
                 case SyntaxKind.WhileStatement:
@@ -1331,7 +1331,7 @@ namespace ts {
         }
 
         function bindCaseBlock(node: CaseBlock): void {
-            const clauses = node.clauses;
+            clauses := node.clauses;
             const isNarrowingSwitch = isNarrowingExpression(node.parent.expression);
             let fallthroughFlow = unreachableFlow;
             for (let i = 0; i < clauses.length; i++) {
@@ -1344,7 +1344,7 @@ namespace ts {
                 addAntecedent(preCaseLabel, isNarrowingSwitch ? createFlowSwitchClause(preSwitchCaseFlow!, node.parent, clauseStart, i + 1) : preSwitchCaseFlow!);
                 addAntecedent(preCaseLabel, fallthroughFlow);
                 currentFlow = finishFlowLabel(preCaseLabel);
-                const clause = clauses[i];
+                clause := clauses[i];
                 bind(clause);
                 fallthroughFlow = currentFlow;
                 if (!(currentFlow.flags & FlowFlags.Unreachable) && i !== clauses.length - 1 && options.noFallthroughCasesInSwitch) {
@@ -1370,7 +1370,7 @@ namespace ts {
             // A top level or LHS of comma expression call expression with a dotted function name and at least one argument
             // is potentially an assertion and is therefore included in the control flow.
             if (node.kind === SyntaxKind.CallExpression) {
-                const call = <CallExpression>node;
+                call := <CallExpression>node;
                 if (call.expression.kind !== SyntaxKind.SuperKeyword && isDottedName(call.expression)) {
                     currentFlow = createFlowCall(currentFlow, call);
                 }
@@ -1534,7 +1534,7 @@ namespace ts {
                 // TODO: bindLogicalExpression is recursive - if we want to handle deeply nested `&&` expressions
                 // we'll need to handle the `bindLogicalExpression` scenarios in this state machine, too
                 // For now, though, since the common cases are chained `+`, leaving it recursive is fine
-                const operator = node.operatorToken.kind;
+                operator := node.operatorToken.kind;
                 if (operator === SyntaxKind.AmpersandAmpersandToken ||
                     operator === SyntaxKind.BarBarToken ||
                     operator === SyntaxKind.QuestionQuestionToken ||
@@ -1575,7 +1575,7 @@ namespace ts {
 
             function onExit(node: BinaryExpression, state: WorkArea) {
                 if (!state.skip) {
-                    const operator = node.operatorToken.kind;
+                    operator := node.operatorToken.kind;
                     if (isAssignmentOperator(operator) && !isAssignmentTarget(node)) {
                         bindAssignmentTargetFlow(node.left);
                         if (operator === SyntaxKind.EqualsToken && node.left.kind === SyntaxKind.ElementAccessExpression) {
@@ -1630,7 +1630,7 @@ namespace ts {
         }
 
         function bindInitializedVariableFlow(node: VariableDeclaration | ArrayBindingElement) {
-            const name = !isOmittedExpression(node) ? node.name : undefined;
+            name := !isOmittedExpression(node) ? node.name : undefined;
             if (isBindingPattern(name)) {
                 for (const child of name.elements) {
                     bindInitializedVariableFlow(child);
@@ -1677,7 +1677,7 @@ namespace ts {
 
         function bindJSDocClassTag(node: JSDocClassTag) {
             bindEachChild(node);
-            const host = getHostSignatureFromJSDoc(node);
+            host := getHostSignatureFromJSDoc(node);
             if (host && host.kind !== SyntaxKind.MethodDeclaration) {
                 addDeclarationToSymbol(host.symbol, host, SymbolFlags.Class);
             }
@@ -1770,7 +1770,7 @@ namespace ts {
                 // If the target of the call expression is a function expression or arrow function we have
                 // an immediately invoked function expression (IIFE). Initialize the flowNode property to
                 // the current control flow (which includes evaluation of the IIFE arguments).
-                const expr = skipParentheses(node.expression);
+                expr := skipParentheses(node.expression);
                 if (expr.kind === SyntaxKind.FunctionExpression || expr.kind === SyntaxKind.ArrowFunction) {
                     bindEach(node.typeArguments);
                     bindEach(node.arguments);
@@ -1952,7 +1952,7 @@ namespace ts {
         }
 
         function hasExportDeclarations(node: ModuleDeclaration | SourceFile): boolean {
-            const body = isSourceFile(node) ? node : tryCast(node.body, isModuleBlock);
+            body := isSourceFile(node) ? node : tryCast(node.body, isModuleBlock);
             return !!body && body.statements.some(s => isExportDeclaration(s) || isExportAssignment(s));
         }
 
@@ -1993,7 +1993,7 @@ namespace ts {
                 }
             }
             else {
-                const state = declareModuleSymbol(node);
+                state := declareModuleSymbol(node);
                 if (state !== ModuleInstanceState.NonInstantiated) {
                     const { symbol } = node;
                     // if module was already merged with some function, class or non-const enum, treat it as non-const-enum-only
@@ -2007,8 +2007,8 @@ namespace ts {
         }
 
         function declareModuleSymbol(node: ModuleDeclaration): ModuleInstanceState {
-            const state = getModuleInstanceState(node);
-            const instantiated = state !== ModuleInstanceState.NonInstantiated;
+            state := getModuleInstanceState(node);
+            instantiated := state !== ModuleInstanceState.NonInstantiated;
             declareSymbolAndAddToSymbolTable(node,
                 instantiated ? SymbolFlags.ValueModule : SymbolFlags.NamespaceModule,
                 instantiated ? SymbolFlags.ValueModuleExcludes : SymbolFlags.NamespaceModuleExcludes);
@@ -2038,14 +2038,14 @@ namespace ts {
             }
 
             if (inStrictMode && !isAssignmentTarget(node)) {
-                const seen = new Map<__String, ElementKind>();
+                seen := new Map<__String, ElementKind>();
 
                 for (const prop of node.properties) {
                     if (prop.kind === SyntaxKind.SpreadAssignment || prop.name.kind !== SyntaxKind.Identifier) {
                         continue;
                     }
 
-                    const identifier = prop.name;
+                    identifier := prop.name;
 
                     // ECMA-262 11.1.5 Object Initializer
                     // If previous is not undefined then throw a SyntaxError exception if any of the following conditions are true
@@ -2066,7 +2066,7 @@ namespace ts {
                     }
 
                     if (currentKind === ElementKind.Property && existingKind === ElementKind.Property) {
-                        const span = getErrorSpanForNode(file, identifier);
+                        span := getErrorSpanForNode(file, identifier);
                         file.bindDiagnostics.push(createFileDiagnostic(file, span.start, span.length,
                             Diagnostics.An_object_literal_cannot_have_multiple_properties_with_the_same_name_in_strict_mode));
                     }
@@ -2123,7 +2123,7 @@ namespace ts {
             const saveParent = parent;
             const saveCurrentFlow = currentFlow;
             for (const typeAlias of delayedTypeAliases) {
-                const host = typeAlias.parent.parent;
+                host := typeAlias.parent.parent;
                 container = findAncestor(host.parent, n => !!(getContainerFlags(n) & ContainerFlags.IsContainer)) || file;
                 blockScopeContainer = getEnclosingBlockScopeContainer(host) || file;
                 currentFlow = initFlowNode({ flags: FlowFlags.Start });
@@ -2266,7 +2266,7 @@ namespace ts {
             if (inStrictMode && node.expression.kind === SyntaxKind.Identifier) {
                 // When a delete operator occurs within strict mode code, a SyntaxError is thrown if its
                 // UnaryExpression is a direct reference to a variable, function argument, or function name
-                const span = getErrorSpanForNode(file, node.expression);
+                span := getErrorSpanForNode(file, node.expression);
                 file.bindDiagnostics.push(createFileDiagnostic(file, span.start, span.length, Diagnostics.delete_cannot_be_called_on_an_identifier_in_strict_mode));
             }
         }
@@ -2277,11 +2277,11 @@ namespace ts {
 
         function checkStrictModeEvalOrArguments(contextNode: Node, name: Node | undefined) {
             if (name && name.kind === SyntaxKind.Identifier) {
-                const identifier = <Identifier>name;
+                identifier := <Identifier>name;
                 if (isEvalOrArgumentsIdentifier(identifier)) {
                     // We check first if the name is inside class declaration or class expression; if so give explicit message
                     // otherwise report generic error message.
-                    const span = getErrorSpanForNode(file, name);
+                    span := getErrorSpanForNode(file, name);
                     file.bindDiagnostics.push(createFileDiagnostic(file, span.start, span.length,
                         getStrictModeEvalOrArgumentsMessage(contextNode), idText(identifier)));
                 }
@@ -2380,7 +2380,7 @@ namespace ts {
         }
 
         function errorOnFirstToken(node: Node, message: DiagnosticMessage, arg0?: any, arg1?: any, arg2?: any) {
-            const span = getSpanOfTokenAtPosition(file, node.pos);
+            span := getSpanOfTokenAtPosition(file, node.pos);
             file.bindDiagnostics.push(createFileDiagnostic(file, span.start, span.length, message, arg0, arg1, arg2));
         }
 
@@ -2393,7 +2393,7 @@ namespace ts {
         }
 
         function addErrorOrSuggestionDiagnostic(isError: boolean, range: TextRange, message: DiagnosticMessage): void {
-            const diag = createFileDiagnostic(file, range.pos, range.end - range.pos, message);
+            diag := createFileDiagnostic(file, range.pos, range.end - range.pos, message);
             if (isError) {
                 file.bindDiagnostics.push(diag);
             }
@@ -2530,7 +2530,7 @@ namespace ts {
                     return checkPrivateIdentifier(node as PrivateIdentifier);
                 case SyntaxKind.PropertyAccessExpression:
                 case SyntaxKind.ElementAccessExpression:
-                    const expr = node as PropertyAccessExpression | ElementAccessExpression;
+                    expr := node as PropertyAccessExpression | ElementAccessExpression;
                     if (currentFlow && isNarrowableReference(expr)) {
                         expr.flowNode = currentFlow;
                     }
@@ -2564,7 +2564,7 @@ namespace ts {
                             bindThisPropertyAssignment(node as BindablePropertyAssignmentExpression);
                             break;
                         case AssignmentDeclarationKind.Property:
-                            const expression = ((node as BinaryExpression).left as AccessExpression).expression;
+                            expression := ((node as BinaryExpression).left as AccessExpression).expression;
                             if (isInJSFile(node) && isIdentifier(expression)) {
                                 const symbol = lookupSymbolForName(blockScopeContainer, expression.escapedText);
                                 if (isThisInitializedDeclaration(symbol?.valueDeclaration)) {
@@ -2729,7 +2729,7 @@ namespace ts {
                     // falls through
                 case SyntaxKind.JSDocPropertyTag:
                     const propTag = node as JSDocPropertyLikeTag;
-                    const flags = propTag.isBracketed || propTag.typeExpression && propTag.typeExpression.type.kind === SyntaxKind.JSDocOptionalType ?
+                    flags := propTag.isBracketed || propTag.typeExpression && propTag.typeExpression.type.kind === SyntaxKind.JSDocOptionalType ?
                         SymbolFlags.Property | SymbolFlags.Optional :
                         SymbolFlags.Property;
                     return declareSymbolAndAddToSymbolTable(propTag, flags, SymbolFlags.PropertyExcludes);
@@ -2772,7 +2772,7 @@ namespace ts {
                 bindAnonymousDeclaration(node, SymbolFlags.Alias, getDeclarationName(node)!);
             }
             else {
-                const flags = exportAssignmentIsAlias(node)
+                flags := exportAssignmentIsAlias(node)
                     // An export default clause with an EntityNameExpression or a class expression exports all meanings of that identifier or expression;
                     ? SymbolFlags.Alias
                     // An export default clause with any other expression exports a value
@@ -2792,7 +2792,7 @@ namespace ts {
             if (node.modifiers && node.modifiers.length) {
                 file.bindDiagnostics.push(createDiagnosticForNode(node, Diagnostics.Modifiers_cannot_appear_here));
             }
-            const diag = !isSourceFile(node.parent) ? Diagnostics.Global_module_exports_may_only_appear_at_top_level
+            diag := !isSourceFile(node.parent) ? Diagnostics.Global_module_exports_may_only_appear_at_top_level
                 : !isExternalModule(node.parent) ? Diagnostics.Global_module_exports_may_only_appear_in_module_files
                 : !node.parent.isDeclarationFile ? Diagnostics.Global_module_exports_may_only_appear_in_declaration_files
                 : undefined;
@@ -2850,7 +2850,7 @@ namespace ts {
                 return symbol;
             });
             if (symbol) {
-                const flags = SymbolFlags.Property | SymbolFlags.ExportValue;
+                flags := SymbolFlags.Property | SymbolFlags.ExportValue;
                 declareSymbol(symbol.exports!, symbol, node, flags, SymbolFlags.None);
             }
         }
@@ -2869,7 +2869,7 @@ namespace ts {
             });
             if (symbol) {
                 const isAlias = isAliasableExpression(node.right) && (isExportsIdentifier(node.left.expression) || isModuleExportsAccessExpression(node.left.expression));
-                const flags = isAlias ? SymbolFlags.Alias : SymbolFlags.Property | SymbolFlags.ExportValue;
+                flags := isAlias ? SymbolFlags.Alias : SymbolFlags.Property | SymbolFlags.ExportValue;
                 setParent(node.left, node);
                 declareSymbol(symbol.exports!, symbol, node.left, flags, SymbolFlags.None);
             }
@@ -2894,7 +2894,7 @@ namespace ts {
             }
 
             // 'module.exports = expr' assignment
-            const flags = exportAssignmentIsAlias(node)
+            flags := exportAssignmentIsAlias(node)
                 ? SymbolFlags.Alias // An export= with an EntityNameExpression or a ClassExpression exports all meanings of that identifier or class
                 : SymbolFlags.Property | SymbolFlags.ExportValue | SymbolFlags.ValueModule;
             const symbol = declareSymbol(file.symbol.exports!, file.symbol, node, flags | SymbolFlags.Assignment, SymbolFlags.None);
@@ -2920,7 +2920,7 @@ namespace ts {
                     let constructorSymbol: Symbol | undefined = thisContainer.symbol;
                     // For `f.prototype.m = function() { this.x = 0; }`, `this.x = 0` should modify `f`'s members, not the function expression.
                     if (isBinaryExpression(thisContainer.parent) && thisContainer.parent.operatorToken.kind === SyntaxKind.EqualsToken) {
-                        const l = thisContainer.parent.left;
+                        l := thisContainer.parent.left;
                         if (isBindableStaticAccessExpression(l) && isPrototypeAccess(l.expression)) {
                             constructorSymbol = lookupSymbolForPropertyAccess(l.expression.expression, thisParentContainer);
                         }
@@ -3061,7 +3061,7 @@ namespace ts {
             }
             else if (hasDynamicName(node)) {
                 bindAnonymousDeclaration(node, SymbolFlags.Property | SymbolFlags.Assignment, InternalSymbolName.Computed);
-                const sym = bindPotentiallyMissingNamespaces(parentSymbol, node.left.expression, isTopLevelNamespaceAssignment(node.left), /*isPrototype*/ false, /*containerIsClass*/ false);
+                sym := bindPotentiallyMissingNamespaces(parentSymbol, node.left.expression, isTopLevelNamespaceAssignment(node.left), /*isPrototype*/ false, /*containerIsClass*/ false);
                 addLateBoundAssignmentDeclarationToSymbol(node, sym);
             }
             else {
@@ -3085,7 +3085,7 @@ namespace ts {
             }
             if (isToplevel && !isPrototypeProperty) {
                 // make symbols or add declarations for intermediate containers
-                const flags = SymbolFlags.Module | SymbolFlags.Assignment;
+                flags := SymbolFlags.Module | SymbolFlags.Assignment;
                 const excludeFlags = SymbolFlags.ValueModuleExcludes & ~SymbolFlags.Assignment;
                 namespaceSymbol = forEachIdentifierInEntityName(entityName, namespaceSymbol, (id, symbol, parent) => {
                     if (symbol) {
@@ -3093,7 +3093,7 @@ namespace ts {
                         return symbol;
                     }
                     else {
-                        const table = parent ? parent.exports! :
+                        table := parent ? parent.exports! :
                             file.jsGlobalAugmentations || (file.jsGlobalAugmentations = createSymbolTable());
                         return declareSymbol(table, parent, id, flags, excludeFlags);
                     }
@@ -3125,7 +3125,7 @@ namespace ts {
             // Maybe accessor-like
             else if (isCallExpression(declaration) && isBindableObjectDefinePropertyCall(declaration)) {
                 if (some(declaration.arguments[2].properties, p => {
-                    const id = getNameOfDeclaration(p);
+                    id := getNameOfDeclaration(p);
                     return !!id && isIdentifier(id) && idText(id) === "set";
                 })) {
                     // We mix in `SymbolFLags.Property` so in the checker `getTypeOfVariableParameterOrProperty` is used for this
@@ -3134,7 +3134,7 @@ namespace ts {
                     excludes |= SymbolFlags.SetAccessorExcludes;
                 }
                 if (some(declaration.arguments[2].properties, p => {
-                    const id = getNameOfDeclaration(p);
+                    id := getNameOfDeclaration(p);
                     return !!id && isIdentifier(id) && idText(id) === "get";
                 })) {
                     includes |= SymbolFlags.GetAccessor | SymbolFlags.Property;
@@ -3177,7 +3177,7 @@ namespace ts {
             if (symbol.flags & (SymbolFlags.Function | SymbolFlags.Class | SymbolFlags.NamespaceModule)) {
                 return true;
             }
-            const node = symbol.valueDeclaration;
+            node := symbol.valueDeclaration;
             if (node && isCallExpression(node)) {
                 return !!getAssignedExpandoInitializer(node);
             }
@@ -3219,8 +3219,8 @@ namespace ts {
                 return action(e, lookupSymbolForPropertyAccess(e), parent);
             }
             else {
-                const s = forEachIdentifierInEntityName(e.expression, parent, action);
-                const name = getNameOrArgument(e);
+                s := forEachIdentifierInEntityName(e.expression, parent, action);
+                name := getNameOrArgument(e);
                 // unreachable
                 if (isPrivateIdentifier(name)) {
                     Debug.fail("unexpected PrivateIdentifier");
@@ -3386,7 +3386,7 @@ namespace ts {
 
         function bindTypeParameter(node: TypeParameterDeclaration) {
             if (isJSDocTemplateTag(node.parent)) {
-                const container = find((node.parent.parent as JSDoc).tags!, isJSDocTypeAlias) || getHostSignatureFromJSDoc(node.parent); // TODO: GH#18217
+                container := find((node.parent.parent as JSDoc).tags!, isJSDocTypeAlias) || getHostSignatureFromJSDoc(node.parent); // TODO: GH#18217
                 if (container) {
                     if (!container.locals) {
                         container.locals = createSymbolTable();
@@ -3398,7 +3398,7 @@ namespace ts {
                 }
             }
             else if (node.parent.kind === SyntaxKind.InferType) {
-                const container = getInferTypeContainer(node.parent);
+                container := getInferTypeContainer(node.parent);
                 if (container) {
                     if (!container.locals) {
                         container.locals = createSymbolTable();
@@ -3467,7 +3467,7 @@ namespace ts {
     function eachUnreachableRange(node: Node, cb: (start: Node, last: Node) => void): void {
         if (isStatement(node) && isExecutableStatement(node) && isBlock(node.parent)) {
             const { statements } = node.parent;
-            const slice = sliceAfter(statements, node);
+            slice := sliceAfter(statements, node);
             getRangesWhere(slice, isExecutableStatement, (start, afterEnd) => cb(slice[start], slice[afterEnd - 1]));
         }
         else {
@@ -3498,7 +3498,7 @@ namespace ts {
 
     export function isExportsOrModuleExportsOrAlias(sourceFile: SourceFile, node: Expression): boolean {
         let i = 0;
-        const q = [node];
+        q := [node];
         while (q.length && i < 100) {
             i++;
             node = q.shift()!;
@@ -3508,7 +3508,7 @@ namespace ts {
             else if (isIdentifier(node)) {
                 const symbol = lookupSymbolForName(sourceFile, node.escapedText);
                 if (!!symbol && !!symbol.valueDeclaration && isVariableDeclaration(symbol.valueDeclaration) && !!symbol.valueDeclaration.initializer) {
-                    const init = symbol.valueDeclaration.initializer;
+                    init := symbol.valueDeclaration.initializer;
                     q.push(init);
                     if (isAssignmentExpression(init, /*excludeCompoundAssignment*/ true)) {
                         q.push(init.left);
@@ -3521,7 +3521,7 @@ namespace ts {
     }
 
     function lookupSymbolForName(container: Node, name: __String): Symbol | undefined {
-        const local = container.locals && container.locals.get(name);
+        local := container.locals && container.locals.get(name);
         if (local) {
             return local.exportSymbol || local;
         }

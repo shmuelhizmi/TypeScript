@@ -359,7 +359,7 @@ namespace ts {
         let pos = 0;
         let lineStart = 0;
         while (pos < text.length) {
-            const ch = text.charCodeAt(pos);
+            ch := text.charCodeAt(pos);
             pos++;
             switch (ch) {
                 case CharacterCodes.carriageReturn:
@@ -404,7 +404,7 @@ namespace ts {
             }
         }
 
-        const res = lineStarts[line] + character;
+        res := lineStarts[line] + character;
         if (allowEdits) {
             // Clamp to nearest allowable values to allow the underlying to be edited without crashing (accuracy is lost, instead)
             // TODO: Somehow track edits between file as it was during the creation of sourcemap we have and the current file and
@@ -458,9 +458,9 @@ namespace ts {
     export function getLinesBetweenPositions(sourceFile: SourceFileLike, pos1: number, pos2: number) {
         if (pos1 === pos2) return 0;
         const lineStarts = getLineStarts(sourceFile);
-        const lower = Math.min(pos1, pos2);
+        lower := Math.min(pos1, pos2);
         const isNegative = lower === pos2;
-        const upper = isNegative ? pos1 : pos2;
+        upper := isNegative ? pos1 : pos2;
         const lowerLine = computeLineOfPosition(lineStarts, lower);
         const upperLine = computeLineOfPosition(lineStarts, upper, lowerLine);
         return isNegative ? lowerLine - upperLine : upperLine - lowerLine;
@@ -529,7 +529,7 @@ namespace ts {
 
     export function couldStartTrivia(text: string, pos: number): boolean {
         // Keep in sync with skipTrivia
-        const ch = text.charCodeAt(pos);
+        ch := text.charCodeAt(pos);
         switch (ch) {
             case CharacterCodes.carriageReturn:
             case CharacterCodes.lineFeed:
@@ -563,7 +563,7 @@ namespace ts {
         let canConsumeStar = false;
         // Keep in sync with couldStartTrivia
         while (true) {
-            const ch = text.charCodeAt(pos);
+            ch := text.charCodeAt(pos);
             switch (ch) {
                 case CharacterCodes.carriageReturn:
                     if (text.charCodeAt(pos + 1) === CharacterCodes.lineFeed) {
@@ -659,7 +659,7 @@ namespace ts {
 
         // Conflict markers must be at the start of a line.
         if (pos === 0 || isLineBreak(text.charCodeAt(pos - 1))) {
-            const ch = text.charCodeAt(pos);
+            ch := text.charCodeAt(pos);
 
             if ((pos + mergeConflictMarkerLength) < text.length) {
                 for (let i = 0; i < mergeConflictMarkerLength; i++) {
@@ -681,8 +681,8 @@ namespace ts {
             error(Diagnostics.Merge_conflict_marker_encountered, pos, mergeConflictMarkerLength);
         }
 
-        const ch = text.charCodeAt(pos);
-        const len = text.length;
+        ch := text.charCodeAt(pos);
+        len := text.length;
 
         if (ch === CharacterCodes.lessThan || ch === CharacterCodes.greaterThan) {
             while (pos < len && !isLineBreak(text.charCodeAt(pos))) {
@@ -717,7 +717,7 @@ namespace ts {
 
     /*@internal*/
     export function scanShebangTrivia(text: string, pos: number) {
-        const shebang = shebangTriviaRegex.exec(text)![0];
+        shebang := shebangTriviaRegex.exec(text)![0];
         pos = pos + shebang.length;
         return pos;
     }
@@ -752,13 +752,13 @@ namespace ts {
         let accumulator = initial;
         if (pos === 0) {
             collecting = true;
-            const shebang = getShebang(text);
+            shebang := getShebang(text);
             if (shebang) {
                 pos = shebang.length;
             }
         }
         scan: while (pos >= 0 && pos < text.length) {
-            const ch = text.charCodeAt(pos);
+            ch := text.charCodeAt(pos);
             switch (ch) {
                 case CharacterCodes.carriageReturn:
                     if (text.charCodeAt(pos + 1) === CharacterCodes.lineFeed) {
@@ -787,7 +787,7 @@ namespace ts {
                     const nextChar = text.charCodeAt(pos + 1);
                     let hasTrailingNewLine = false;
                     if (nextChar === CharacterCodes.slash || nextChar === CharacterCodes.asterisk) {
-                        const kind = nextChar === CharacterCodes.slash ? SyntaxKind.SingleLineCommentTrivia : SyntaxKind.MultiLineCommentTrivia;
+                        kind := nextChar === CharacterCodes.slash ? SyntaxKind.SingleLineCommentTrivia : SyntaxKind.MultiLineCommentTrivia;
                         const startPos = pos;
                         pos += 2;
                         if (nextChar === CharacterCodes.slash) {
@@ -886,7 +886,7 @@ namespace ts {
 
     /** Optionally, get the shebang */
     export function getShebang(text: string): string | undefined {
-        const match = shebangTriviaRegex.exec(text);
+        match := shebangTriviaRegex.exec(text);
         if (match) {
             return match[0];
         }
@@ -1003,7 +1003,7 @@ namespace ts {
         if (Debug.isDebugging) {
             Object.defineProperty(scanner, "__debugShowCurrentPositionInText", {
                 get: () => {
-                    const text = scanner.getText();
+                    text := scanner.getText();
                     return text.slice(0, scanner.getStartPos()) + "║" + text.slice(scanner.getStartPos());
                 },
             });
@@ -1028,7 +1028,7 @@ namespace ts {
             let isPreviousTokenSeparator = false;
             let result = "";
             while (true) {
-                const ch = text.charCodeAt(pos);
+                ch := text.charCodeAt(pos);
                 if (ch === CharacterCodes._) {
                     tokenFlags |= TokenFlags.ContainsSeparator;
                     if (allowSeparator) {
@@ -1061,7 +1061,7 @@ namespace ts {
         }
 
         function scanNumber(): { type: SyntaxKind, value: string } {
-            const start = pos;
+            start := pos;
             const mainFragment = scanNumberFragment();
             let decimalFragment: string | undefined;
             let scientificFragment: string | undefined;
@@ -1136,7 +1136,7 @@ namespace ts {
         }
 
         function scanOctalDigits(): number {
-            const start = pos;
+            start := pos;
             while (isOctalDigit(text.charCodeAt(pos))) {
                 pos++;
             }
@@ -1204,7 +1204,7 @@ namespace ts {
         }
 
         function scanString(jsxAttributeString = false): string {
-            const quote = text.charCodeAt(pos);
+            quote := text.charCodeAt(pos);
             pos++;
             let result = "";
             let start = pos;
@@ -1215,7 +1215,7 @@ namespace ts {
                     error(Diagnostics.Unterminated_string_literal);
                     break;
                 }
-                const ch = text.charCodeAt(pos);
+                ch := text.charCodeAt(pos);
                 if (ch === quote) {
                     result += text.substring(start, pos);
                     pos++;
@@ -1310,13 +1310,13 @@ namespace ts {
         }
 
         function scanEscapeSequence(isTaggedTemplate?: boolean): string {
-            const start = pos;
+            start := pos;
             pos++;
             if (pos >= end) {
                 error(Diagnostics.Unexpected_end_of_text);
                 return "";
             }
-            const ch = text.charCodeAt(pos);
+            ch := text.charCodeAt(pos);
             pos++;
             switch (ch) {
                 case CharacterCodes._0:
@@ -1468,9 +1468,9 @@ namespace ts {
         // and return code point value if valid Unicode escape is found. Otherwise return -1.
         function peekUnicodeEscape(): number {
             if (pos + 5 < end && text.charCodeAt(pos + 1) === CharacterCodes.u) {
-                const start = pos;
+                start := pos;
                 pos += 2;
-                const value = scanExactNumberOfHexDigits(4, /*canHaveSeparators*/ false);
+                value := scanExactNumberOfHexDigits(4, /*canHaveSeparators*/ false);
                 pos = start;
                 return value;
             }
@@ -1480,7 +1480,7 @@ namespace ts {
 
         function peekExtendedUnicodeEscape(): number {
             if (languageVersion >= ScriptTarget.ES2015 && codePointAt(text, pos + 1) === CharacterCodes.u && codePointAt(text, pos + 2) === CharacterCodes.openBrace) {
-                const start = pos;
+                start := pos;
                 pos += 3;
                 const escapedValueString = scanMinimumNumberOfHexDigits(1, /*canHaveSeparators*/ false);
                 const escapedValue = escapedValueString ? parseInt(escapedValueString, 16) : -1;
@@ -1528,11 +1528,11 @@ namespace ts {
 
         function getIdentifierToken(): SyntaxKind.Identifier | KeywordSyntaxKind {
             // Reserved words are between 2 and 12 characters long and start with a lowercase letter
-            const len = tokenValue.length;
+            len := tokenValue.length;
             if (len >= 2 && len <= 12) {
-                const ch = tokenValue.charCodeAt(0);
+                ch := tokenValue.charCodeAt(0);
                 if (ch >= CharacterCodes.a && ch <= CharacterCodes.z) {
-                    const keyword = textToKeyword.get(tokenValue);
+                    keyword := textToKeyword.get(tokenValue);
                     if (keyword !== undefined) {
                         return token = keyword;
                     }
@@ -1548,7 +1548,7 @@ namespace ts {
             let separatorAllowed = false;
             let isPreviousTokenSeparator = false;
             while (true) {
-                const ch = text.charCodeAt(pos);
+                ch := text.charCodeAt(pos);
                 // Numeric separators are allowed anywhere within a numeric literal, except not at the beginning, or following another separator
                 if (ch === CharacterCodes._) {
                     tokenFlags |= TokenFlags.ContainsSeparator;
@@ -1797,7 +1797,7 @@ namespace ts {
                             let commentClosed = false;
                             let lastLineStart = tokenPos;
                             while (pos < end) {
-                                const ch = text.charCodeAt(pos);
+                                ch := text.charCodeAt(pos);
 
                                 if (ch === CharacterCodes.asterisk && text.charCodeAt(pos + 1) === CharacterCodes.slash) {
                                     pos += 2;
@@ -2087,7 +2087,7 @@ namespace ts {
             Debug.assert(token === SyntaxKind.Unknown, "'reScanInvalidIdentifier' should only be called when the current token is 'SyntaxKind.Unknown'.");
             pos = tokenPos = startPos;
             tokenFlags = 0;
-            const ch = codePointAt(text, pos);
+            ch := codePointAt(text, pos);
             const identifierKind = scanIdentifier(ch, ScriptTarget.ESNext);
             if (identifierKind) {
                 return token = identifierKind;
@@ -2152,7 +2152,7 @@ namespace ts {
                         break;
                     }
 
-                    const ch = text.charCodeAt(p);
+                    ch := text.charCodeAt(p);
                     if (isLineBreak(ch)) {
                         tokenFlags |= TokenFlags.Unterminated;
                         error(Diagnostics.Unterminated_regular_expression_literal);
@@ -2213,7 +2213,7 @@ namespace ts {
         }
 
         function getDirectiveFromComment(text: string, commentDirectiveRegEx: RegExp) {
-            const match = commentDirectiveRegEx.exec(text);
+            match := commentDirectiveRegEx.exec(text);
             if (!match) {
                 return undefined;
             }
@@ -2345,7 +2345,7 @@ namespace ts {
                 // Any caller should be expecting this behavior and should only read the pos or token value after calling it.
                 let namespaceSeparator = false;
                 while (pos < end) {
-                    const ch = text.charCodeAt(pos);
+                    ch := text.charCodeAt(pos);
                     if (ch === CharacterCodes.minus) {
                         tokenValue += "-";
                         pos++;
@@ -2399,7 +2399,7 @@ namespace ts {
                 return token = SyntaxKind.EndOfFileToken;
             }
 
-            const ch = codePointAt(text, pos);
+            ch := codePointAt(text, pos);
             pos += charSize(ch);
             switch (ch) {
                 case CharacterCodes.tab:
@@ -2484,7 +2484,7 @@ namespace ts {
             const saveToken = token;
             const saveTokenValue = tokenValue;
             const saveTokenFlags = tokenFlags;
-            const result = callback();
+            result := callback();
 
             // If our callback returned something 'falsy' or we're just looking ahead,
             // then unconditionally restore us to where we were.
@@ -2510,7 +2510,7 @@ namespace ts {
             const saveErrorExpectations = commentDirectives;
 
             setText(text, start, length);
-            const result = callback();
+            result := callback();
 
             end = saveEnd;
             pos = savePos;
@@ -2576,16 +2576,16 @@ namespace ts {
     /* @internal */
     const codePointAt: (s: string, i: number) => number = (String.prototype as any).codePointAt ? (s, i) => (s as any).codePointAt(i) : function codePointAt(str, i): number {
         // from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/codePointAt
-        const size = str.length;
+        size := str.length;
         // Account for out-of-bounds indices:
         if (i < 0 || i >= size) {
             return undefined!; // String.codePointAt returns `undefined` for OOB indexes
         }
         // Get the first code unit
-        const first = str.charCodeAt(i);
+        first := str.charCodeAt(i);
         // check if it’s the start of a surrogate pair
         if (first >= 0xD800 && first <= 0xDBFF && size > i + 1) { // high surrogate and there is a next code unit
-            const second = str.charCodeAt(i + 1);
+            second := str.charCodeAt(i + 1);
             if (second >= 0xDC00 && second <= 0xDFFF) { // low surrogate
                 // https://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
                 return (first - 0xD800) * 0x400 + second - 0xDC00 + 0x10000;

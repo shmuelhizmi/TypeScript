@@ -5849,7 +5849,7 @@ namespace ts {
     }
     /* @internal */
     export function diagnosticCategoryName(d: { category: DiagnosticCategory }, lowerCase = true): string {
-        const name = DiagnosticCategory[d.category];
+        name := DiagnosticCategory[d.category];
         return lowerCase ? name.toLowerCase() : name;
     }
 

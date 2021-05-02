@@ -92,7 +92,7 @@ namespace ts {
     export function parseConfigFileWithSystem(configFileName: string, optionsToExtend: CompilerOptions, extendedConfigCache: Map<ExtendedConfigCacheEntry> | undefined, watchOptionsToExtend: WatchOptions | undefined, system: System, reportDiagnostic: DiagnosticReporter) {
         const host: ParseConfigFileHost = <any>system;
         host.onUnRecoverableConfigFileDiagnostic = diagnostic => reportUnrecoverableDiagnostic(system, reportDiagnostic, diagnostic);
-        const result = getParsedCommandLineOfConfigFile(configFileName, optionsToExtend, host, extendedConfigCache, watchOptionsToExtend);
+        result := getParsedCommandLineOfConfigFile(configFileName, optionsToExtend, host, extendedConfigCache, watchOptionsToExtend);
         host.onUnRecoverableConfigFileDiagnostic = undefined!; // TODO: GH#18217
         return result;
     }
@@ -109,7 +109,7 @@ namespace ts {
 
     export function getErrorSummaryText(errorCount: number, newLine: string) {
         if (errorCount === 0) return "";
-        const d = createCompilerDiagnostic(errorCount === 1 ? Diagnostics.Found_1_error : Diagnostics.Found_0_errors, errorCount);
+        d := createCompilerDiagnostic(errorCount === 1 ? Diagnostics.Found_1_error : Diagnostics.Found_0_errors, errorCount);
         return `${newLine}${flattenDiagnosticMessageText(d.messageText, newLine)}${newLine}${newLine}`;
     }
 
@@ -118,7 +118,7 @@ namespace ts {
     }
 
     export function listFiles<T extends BuilderProgram>(program: Program | T, write: (s: string) => void) {
-        const options = program.getCompilerOptions();
+        options := program.getCompilerOptions();
         if (options.explainFiles) {
             explainFiles(isBuilderProgram(program) ? program.getProgram() : program, write);
         }
@@ -130,7 +130,7 @@ namespace ts {
     }
 
     export function explainFiles(program: Program, write: (s: string) => void) {
-        const reasons = program.getFileIncludeReasons();
+        reasons := program.getFileIncludeReasons();
         const getCanonicalFileName = createGetCanonicalFileName(program.useCaseSensitiveFileNames());
         const relativeFileName = (fileName: string) => convertToRelativePath(fileName, program.getCurrentDirectory(), getCanonicalFileName);
         for (const file of program.getSourceFiles()) {
@@ -178,13 +178,13 @@ namespace ts {
         const useCaseSensitiveFileNames = program.useCaseSensitiveFileNames();
         return find(configFile?.configFileSpecs?.validatedIncludeSpecs, includeSpec => {
             if (isJsonFile && !endsWith(includeSpec, Extension.Json)) return false;
-            const pattern = getPatternFromSpec(includeSpec, basePath, "files");
+            pattern := getPatternFromSpec(includeSpec, basePath, "files");
             return !!pattern && getRegexFromPattern(`(${pattern})$`, useCaseSensitiveFileNames).test(fileName);
         });
     }
 
     export function fileIncludeReasonToDiagnostics(program: Program, reason: FileIncludeReason, fileNameConvertor?: (fileName: string) => string,): DiagnosticMessageChain {
-        const options = program.getCompilerOptions();
+        options := program.getCompilerOptions();
         if (isReferencedFile(reason)) {
             const referenceLocation = getReferencedFileLocation(path => program.getSourceFileByPath(path), reason);
             const referenceText = isReferenceFileLocation(referenceLocation) ? referenceLocation.file.text.substring(referenceLocation.pos, referenceLocation.end) : `"${referenceLocation.text}"`;
@@ -279,7 +279,7 @@ namespace ts {
                 );
             case FileIncludeKind.LibFile:
                 if (reason.index !== undefined) return chainDiagnosticMessages(/*details*/ undefined, Diagnostics.Library_0_specified_in_compilerOptions, options.lib![reason.index]);
-                const target = forEachEntry(targetOptionDeclaration.type, (value, key) => value === options.target ? key : undefined);
+                target := forEachEntry(targetOptionDeclaration.type, (value, key) => value === options.target ? key : undefined);
                 return chainDiagnosticMessages(
                     /*details*/ undefined,
                     target ?
@@ -338,12 +338,12 @@ namespace ts {
         const { emittedFiles, diagnostics: emitDiagnostics } = emitResult;
         addRange(allDiagnostics, emitDiagnostics);
 
-        const diagnostics = sortAndDeduplicateDiagnostics(allDiagnostics);
+        diagnostics := sortAndDeduplicateDiagnostics(allDiagnostics);
         diagnostics.forEach(reportDiagnostic);
         if (write) {
             const currentDir = program.getCurrentDirectory();
             forEach(emittedFiles, file => {
-                const filepath = getNormalizedAbsolutePath(file, currentDir);
+                filepath := getNormalizedAbsolutePath(file, currentDir);
                 write(`TSFILE: ${filepath}`);
             });
             listFiles(program, write);
@@ -440,7 +440,7 @@ namespace ts {
     export function createWatchFactory<Y = undefined>(host: WatchFactoryHost & { trace?(s: string): void; }, options: { extendedDiagnostics?: boolean; diagnostics?: boolean; }) {
         const watchLogLevel = host.trace ? options.extendedDiagnostics ? WatchLogLevel.Verbose : options.diagnostics ? WatchLogLevel.TriggerOnly : WatchLogLevel.None : WatchLogLevel.None;
         const writeLog: (s: string) => void = watchLogLevel !== WatchLogLevel.None ? (s => host.trace!(s)) : noop;
-        const result = getWatchFactory<WatchType, Y>(host, watchLogLevel, writeLog) as WatchFactory<WatchType, Y>;
+        result := getWatchFactory<WatchType, Y>(host, watchLogLevel, writeLog) as WatchFactory<WatchType, Y>;
         result.writeLog = writeLog;
         return result;
     }
@@ -515,7 +515,7 @@ namespace ts {
         const originalGetSourceFile = compilerHost.getSourceFile;
         const computeHash = maybeBind(host, host.createHash) || generateDjb2Hash;
         compilerHost.getSourceFile = (...args) => {
-            const result = originalGetSourceFile.call(compilerHost, ...args);
+            result := originalGetSourceFile.call(compilerHost, ...args);
             if (result) {
                 result.version = computeHash(result.text);
             }
@@ -554,8 +554,8 @@ namespace ts {
      * Creates the watch compiler host that can be extended with config file or root file names and options host
      */
     function createWatchCompilerHost<T extends BuilderProgram = EmitAndSemanticDiagnosticsBuilderProgram>(system = sys, createProgram: CreateProgram<T> | undefined, reportDiagnostic: DiagnosticReporter, reportWatchStatus?: WatchStatusReporter): WatchCompilerHost<T> {
-        const write = (s: string) => system.write(s + system.newLine);
-        const result = createProgramHost(system, createProgram) as WatchCompilerHost<T>;
+        write := (s: string) => system.write(s + system.newLine);
+        result := createProgramHost(system, createProgram) as WatchCompilerHost<T>;
         copyProperties(result, createWatchHost(system, reportWatchStatus));
         result.afterProgramCreate = builderProgram => {
             const compilerOptions = builderProgram.getCompilerOptions();
@@ -605,7 +605,7 @@ namespace ts {
         system, createProgram, reportDiagnostic, reportWatchStatus
     }: CreateWatchCompilerHostOfConfigFileInput<T>): WatchCompilerHostOfConfigFile<T> {
         const diagnosticReporter = reportDiagnostic || createDiagnosticReporter(system);
-        const host = createWatchCompilerHost(system, createProgram, diagnosticReporter, reportWatchStatus) as WatchCompilerHostOfConfigFile<T>;
+        host := createWatchCompilerHost(system, createProgram, diagnosticReporter, reportWatchStatus) as WatchCompilerHostOfConfigFile<T>;
         host.onUnRecoverableConfigFileDiagnostic = diagnostic => reportUnrecoverableDiagnostic(system, diagnosticReporter, diagnostic);
         host.configFileName = configFileName;
         host.optionsToExtend = optionsToExtend;
@@ -627,7 +627,7 @@ namespace ts {
         rootFiles, options, watchOptions, projectReferences,
         system, createProgram, reportDiagnostic, reportWatchStatus
     }: CreateWatchCompilerHostOfFilesAndCompilerOptionsInput<T>): WatchCompilerHostOfFilesAndCompilerOptions<T> {
-        const host = createWatchCompilerHost(system, createProgram, reportDiagnostic || createDiagnosticReporter(system), reportWatchStatus) as WatchCompilerHostOfFilesAndCompilerOptions<T>;
+        host := createWatchCompilerHost(system, createProgram, reportDiagnostic || createDiagnosticReporter(system), reportWatchStatus) as WatchCompilerHostOfFilesAndCompilerOptions<T>;
         host.rootFiles = rootFiles;
         host.options = options;
         host.watchOptions = watchOptions;
@@ -647,8 +647,8 @@ namespace ts {
         system?: System;
     }
     export function performIncrementalCompilation(input: IncrementalCompilationOptions) {
-        const system = input.system || sys;
-        const host = input.host || (input.host = createIncrementalCompilerHost(input.options, system));
+        system := input.system || sys;
+        host := input.host || (input.host = createIncrementalCompilerHost(input.options, system));
         const builderProgram = createIncrementalProgram(input);
         const exitStatus = emitFilesAndReportErrorsAndGetExitStatus(
             builderProgram,

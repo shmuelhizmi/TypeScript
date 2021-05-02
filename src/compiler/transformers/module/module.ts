@@ -25,8 +25,8 @@ namespace ts {
         } = context;
 
         const compilerOptions = context.getCompilerOptions();
-        const resolver = context.getEmitResolver();
-        const host = context.getEmitHost();
+        resolver := context.getEmitResolver();
+        host := context.getEmitHost();
         const languageVersion = getEmitScriptTarget(compilerOptions);
         const moduleKind = getEmitModuleKind(compilerOptions);
         const previousOnSubstituteNode = context.onSubstituteNode;
@@ -72,7 +72,7 @@ namespace ts {
 
             // Perform the transformation.
             const transformModule = getTransformModuleDelegate(moduleKind);
-            const updated = transformModule(node);
+            updated := transformModule(node);
             currentSourceFile = undefined!;
             currentModuleInfo = undefined!;
             needUMDDynamicImportHelper = false;
@@ -123,7 +123,7 @@ namespace ts {
             addExportEqualsIfNeeded(statements, /*emitAsReturn*/ false);
             insertStatementsAfterStandardPrologue(statements, endLexicalEnvironment());
 
-            const updated = factory.updateSourceFile(node, setTextRange(factory.createNodeArray(statements), node.statements));
+            updated := factory.updateSourceFile(node, setTextRange(factory.createNodeArray(statements), node.statements));
             addEmitHelpers(updated, context.readEmitHelpers());
             return updated;
         }
@@ -134,7 +134,7 @@ namespace ts {
          * @param node The SourceFile node.
          */
         function transformAMDModule(node: SourceFile) {
-            const define = factory.createIdentifier("define");
+            define := factory.createIdentifier("define");
             const moduleName = tryGetModuleNameFromFile(factory, node, host, compilerOptions);
             const jsonSourceFile = isJsonSourceFile(node) && node;
 
@@ -164,7 +164,7 @@ namespace ts {
             // Create an updated SourceFile:
             //
             //     define(mofactory.updateSourceFile", "module2"], function ...
-            const updated = factory.updateSourceFile(node,
+            updated := factory.updateSourceFile(node,
                 setTextRange(
                     factory.createNodeArray([
                         factory.createExpressionStatement(
@@ -318,7 +318,7 @@ namespace ts {
             //      }
             //  })(function ...)
 
-            const updated = factory.updateSourceFile(
+            updated := factory.updateSourceFile(
                 node,
                 setTextRange(
                     factory.createNodeArray([
@@ -414,8 +414,8 @@ namespace ts {
             if (isImportEqualsDeclaration(node) || isExportDeclaration(node) || !getExternalModuleNameLiteral(factory, node, currentSourceFile, host, resolver, compilerOptions)) {
                 return undefined;
             }
-            const name = getLocalNameForExternalImport(factory, node, currentSourceFile)!; // TODO: GH#18217
-            const expr = getHelperExpressionForImport(node, name);
+            name := getLocalNameForExternalImport(factory, node, currentSourceFile)!; // TODO: GH#18217
+            expr := getHelperExpressionForImport(node, name);
             if (expr === name) {
                 return undefined;
             }
@@ -454,7 +454,7 @@ namespace ts {
             // and merge any new lexical declarations.
             insertStatementsAfterStandardPrologue(statements, endLexicalEnvironment());
 
-            const body = factory.createBlock(statements, /*multiLine*/ true);
+            body := factory.createBlock(statements, /*multiLine*/ true);
             if (needUMDDynamicImportHelper) {
                 addEmitHelper(body, dynamicImportUMDHelper);
             }
@@ -475,13 +475,13 @@ namespace ts {
                 const expressionResult = visitNode(currentModuleInfo.exportEquals.expression, moduleExpressionElementVisitor);
                 if (expressionResult) {
                     if (emitAsReturn) {
-                        const statement = factory.createReturnStatement(expressionResult);
+                        statement := factory.createReturnStatement(expressionResult);
                         setTextRange(statement, currentModuleInfo.exportEquals);
                         setEmitFlags(statement, EmitFlags.NoTokenSourceMaps | EmitFlags.NoComments);
                         statements.push(statement);
                     }
                     else {
-                        const statement = factory.createExpressionStatement(
+                        statement := factory.createExpressionStatement(
                             factory.createAssignment(
                                 factory.createPropertyAccessExpression(
                                     factory.createIdentifier("module"),
@@ -616,7 +616,7 @@ namespace ts {
             const externalModuleName = getExternalModuleNameLiteral(factory, node, currentSourceFile, host, resolver, compilerOptions);
             const firstArgument = visitNode(firstOrUndefined(node.arguments), moduleExpressionElementVisitor);
             // Only use the external module name if it differs from the first argument. This allows us to preserve the quote style of the argument on output.
-            const argument = externalModuleName && (!firstArgument || !isStringLiteral(firstArgument) || firstArgument.text !== externalModuleName.text) ? externalModuleName : firstArgument;
+            argument := externalModuleName && (!firstArgument || !isStringLiteral(firstArgument) || firstArgument.text !== externalModuleName.text) ? externalModuleName : firstArgument;
             const containsLexicalThis = !!(node.transformFlags & TransformFlags.ContainsLexicalThis);
             switch (compilerOptions.module) {
                 case ModuleKind.AMD:
@@ -655,7 +655,7 @@ namespace ts {
                 );
             }
             else {
-                const temp = factory.createTempVariable(hoistVariableDeclaration);
+                temp := factory.createTempVariable(hoistVariableDeclaration);
                 return factory.createComma(factory.createAssignment(temp, arg), factory.createConditionalExpression(
                     /*condition*/ factory.createIdentifier("__syncRequire"),
                     /*questionToken*/ undefined,
@@ -673,13 +673,13 @@ namespace ts {
             //     ...
             //     new Promise(function (_a, _b) { require([x], _a, _b); }); /*Amd Require*/
             // });
-            const resolve = factory.createUniqueName("resolve");
-            const reject = factory.createUniqueName("reject");
-            const parameters = [
+            resolve := factory.createUniqueName("resolve");
+            reject := factory.createUniqueName("reject");
+            parameters := [
                 factory.createParameterDeclaration(/*decorator*/ undefined, /*modifiers*/ undefined, /*dotDotDotToken*/ undefined, /*name*/ resolve),
                 factory.createParameterDeclaration(/*decorator*/ undefined, /*modifiers*/ undefined, /*dotDotDotToken*/ undefined, /*name*/ reject)
             ];
-            const body = factory.createBlock([
+            body := factory.createBlock([
                 factory.createExpressionStatement(
                     factory.createCallExpression(
                         factory.createIdentifier("require"),
@@ -717,7 +717,7 @@ namespace ts {
                 }
             }
 
-            const promise = factory.createNewExpression(factory.createIdentifier("Promise"), /*typeArguments*/ undefined, [func]);
+            promise := factory.createNewExpression(factory.createIdentifier("Promise"), /*typeArguments*/ undefined, [func]);
             if (compilerOptions.esModuleInterop) {
                 return factory.createCallExpression(factory.createPropertyAccessExpression(promise, factory.createIdentifier("then")), /*typeArguments*/ undefined, [emitHelpers().createImportStarCallbackHelper()]);
             }
@@ -885,7 +885,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfImportDeclaration(deferredExports[id], node);
             }
             else {
@@ -976,7 +976,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfImportEqualsDeclaration(deferredExports[id], node);
             }
             else {
@@ -1107,10 +1107,10 @@ namespace ts {
             }
 
             let statements: Statement[] | undefined;
-            const original = node.original;
+            original := node.original;
             if (original && hasAssociatedEndOfDeclarationMarker(original)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportStatement(deferredExports[id], factory.createIdentifier("default"), visitNode(node.expression, moduleExpressionElementVisitor), /*location*/ node, /*allowComments*/ true);
             }
             else {
@@ -1153,7 +1153,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfHoistedDeclaration(deferredExports[id], node);
             }
             else {
@@ -1194,7 +1194,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfHoistedDeclaration(deferredExports[id], node);
             }
             else {
@@ -1229,7 +1229,7 @@ namespace ts {
                     }
                     else if (variable.initializer) {
                         if (!isBindingPattern(variable.name) && (isArrowFunction(variable.initializer) || isFunctionExpression(variable.initializer) || isClassExpression(variable.initializer))) {
-                            const expression = factory.createAssignment(
+                            expression := factory.createAssignment(
                                 setTextRange(
                                     factory.createPropertyAccessExpression(
                                         factory.createIdentifier("exports"),
@@ -1261,7 +1261,7 @@ namespace ts {
                 }
 
                 if (expressions) {
-                    const statement = setOriginalNode(setTextRange(factory.createExpressionStatement(factory.inlineExpressions(expressions)), node), node);
+                    statement := setOriginalNode(setTextRange(factory.createExpressionStatement(factory.inlineExpressions(expressions)), node), node);
                     if (removeCommentsOnExpressions) {
                         removeAllComments(statement);
                     }
@@ -1274,7 +1274,7 @@ namespace ts {
 
             if (hasAssociatedEndOfDeclarationMarker(node)) {
                 // Defer exports until we encounter an EndOfDeclarationMarker node
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfVariableStatement(deferredExports[id], node);
             }
             else {
@@ -1345,7 +1345,7 @@ namespace ts {
             // To balance the declaration, add the exports of the elided variable
             // statement.
             if (hasAssociatedEndOfDeclarationMarker(node) && node.original!.kind === SyntaxKind.VariableStatement) {
-                const id = getOriginalNodeId(node);
+                id := getOriginalNodeId(node);
                 deferredExports[id] = appendExportsOfVariableStatement(deferredExports[id], <VariableStatement>node.original);
             }
 
@@ -1371,8 +1371,8 @@ namespace ts {
             // For some transformations we emit an `EndOfDeclarationMarker` to mark the actual
             // end of the transformed declaration. We use this marker to emit any deferred exports
             // of the declaration.
-            const id = getOriginalNodeId(node);
-            const statements = deferredExports[id];
+            id := getOriginalNodeId(node);
+            statements := deferredExports[id];
             if (statements) {
                 delete deferredExports[id];
                 return append(statements, node);
@@ -1524,7 +1524,7 @@ namespace ts {
          * @param decl The declaration to export.
          */
         function appendExportsOfDeclaration(statements: Statement[] | undefined, decl: Declaration, liveBinding?: boolean): Statement[] | undefined {
-            const name = factory.getDeclarationName(decl);
+            name := factory.getDeclarationName(decl);
             const exportSpecifiers = currentModuleInfo.exportSpecifiers.get(idText(name));
             if (exportSpecifiers) {
                 for (const exportSpecifier of exportSpecifiers) {
@@ -1589,7 +1589,7 @@ namespace ts {
          * @param allowComments An optional value indicating whether to emit comments for the statement.
          */
         function createExportStatement(name: Identifier, value: Expression, location?: TextRange, allowComments?: boolean, liveBinding?: boolean) {
-            const statement = setTextRange(factory.createExpressionStatement(createExportExpression(name, value, /* location */ undefined, liveBinding)), location);
+            statement := setTextRange(factory.createExpressionStatement(createExportExpression(name, value, /* location */ undefined, liveBinding)), location);
             startOnNewLine(statement);
             if (!allowComments) {
                 setEmitFlags(statement, EmitFlags.NoComments);
@@ -1721,13 +1721,13 @@ namespace ts {
          * @param node The node to substitute.
          */
         function substituteShorthandPropertyAssignment(node: ShorthandPropertyAssignment): ObjectLiteralElementLike {
-            const name = node.name;
+            name := node.name;
             const exportedOrImportedName = substituteExpressionIdentifier(name);
             if (exportedOrImportedName !== name) {
                 // A shorthand property with an assignment initializer is probably part of a
                 // destructuring assignment
                 if (node.objectAssignmentInitializer) {
-                    const initializer = factory.createAssignment(exportedOrImportedName, node.objectAssignmentInitializer);
+                    initializer := factory.createAssignment(exportedOrImportedName, node.objectAssignmentInitializer);
                     return setTextRange(factory.createPropertyAssignment(name, initializer), node);
                 }
                 return setTextRange(factory.createPropertyAssignment(name, exportedOrImportedName), node);
@@ -1845,7 +1845,7 @@ namespace ts {
          * @param node The node to substitute.
          */
         function substituteExpressionIdentifier(node: Identifier): Expression {
-            const result = getImportOrExportBindingReference(node, /*removeEntry*/ true);
+            result := getImportOrExportBindingReference(node, /*removeEntry*/ true);
             switch (result?.kind) {
                 case SyntaxKind.Identifier: // tslib import
                     return factory.createPropertyAccessExpression(result, node);
@@ -1866,7 +1866,7 @@ namespace ts {
                         /*location*/ node
                     );
                 case SyntaxKind.ImportSpecifier:
-                    const name = result.propertyName || result.name;
+                    name := result.propertyName || result.name;
                     return setTextRange(
                         factory.createPropertyAccessExpression(
                             factory.getGeneratedNameForNode(result.parent?.parent?.parent || result),

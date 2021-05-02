@@ -69,7 +69,7 @@ namespace ts { // eslint-disable-line one-namespace-per-file
             tracing = tracingEnabled; // only when traceFd is properly set
 
             // Start with a prefix that contains some metadata that the devtools profiler expects (also avoids a warning on import)
-            const meta = { cat: "__metadata", ph: "M", ts: 1000 * timestamp(), pid: 1, tid: 1 };
+            meta := { cat: "__metadata", ph: "M", ts: 1000 * timestamp(), pid: 1, tid: 1 };
             fs.writeSync(traceFd,
                 "[\n"
                 + [{ name: "process_name", args: { name: "tsc" }, ...meta },
@@ -172,7 +172,7 @@ namespace ts { // eslint-disable-line one-namespace-per-file
         }
 
         function getLocation(node: Node | undefined) {
-            const file = getSourceFileOfNode(node);
+            file := getSourceFileOfNode(node);
             return !file
                 ? undefined
                 : {
@@ -287,7 +287,7 @@ namespace ts { // eslint-disable-line one-namespace-per-file
                     }
                 }
 
-                const descriptor = {
+                descriptor := {
                     id: type.id,
                     intrinsicName: (type as any).intrinsicName,
                     symbolName: symbol?.escapedName && unescapeLeadingUnderscores(symbol.escapedName),

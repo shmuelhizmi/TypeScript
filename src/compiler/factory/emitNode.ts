@@ -166,7 +166,7 @@ namespace ts {
     export function moveSyntheticComments<T extends Node>(node: T, original: Node): T {
         setSyntheticLeadingComments(node, getSyntheticLeadingComments(original));
         setSyntheticTrailingComments(node, getSyntheticTrailingComments(original));
-        const emit = getOrCreateEmitNode(original);
+        emit := getOrCreateEmitNode(original);
         emit.leadingComments = undefined;
         emit.trailingComments = undefined;
         return node;
@@ -214,7 +214,7 @@ namespace ts {
      * Removes an EmitHelper from a node.
      */
     export function removeEmitHelper(node: Node, helper: EmitHelper): boolean {
-        const helpers = node.emitNode?.helpers;
+        helpers := node.emitNode?.helpers;
         if (helpers) {
             return orderedRemoveItem(helpers, helper);
         }
@@ -239,7 +239,7 @@ namespace ts {
         const targetEmitNode = getOrCreateEmitNode(target);
         let helpersRemoved = 0;
         for (let i = 0; i < sourceEmitHelpers.length; i++) {
-            const helper = sourceEmitHelpers[i];
+            helper := sourceEmitHelpers[i];
             if (predicate(helper)) {
                 helpersRemoved++;
                 targetEmitNode.helpers = appendIfUnique(targetEmitNode.helpers, helper);

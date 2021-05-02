@@ -21,7 +21,7 @@ namespace ts {
             hoistVariableDeclaration
         } = context;
 
-        const resolver = context.getEmitResolver();
+        resolver := context.getEmitResolver();
         const compilerOptions = context.getCompilerOptions();
         const languageVersion = getEmitScriptTarget(compilerOptions);
 
@@ -67,7 +67,7 @@ namespace ts {
 
             setContextFlag(ContextFlags.NonTopLevel, false);
             setContextFlag(ContextFlags.HasLexicalThis, !isEffectiveStrictModeSourceFile(node, compilerOptions));
-            const visited = visitEachChild(node, visitor, context);
+            visited := visitEachChild(node, visitor, context);
             addEmitHelpers(visited, context.readEmitHelpers());
             return visited;
         }
@@ -92,7 +92,7 @@ namespace ts {
             const contextFlagsToSet = flags & ~contextFlags;
             if (contextFlagsToSet) {
                 setContextFlag(contextFlagsToSet, /*val*/ true);
-                const result = cb(value);
+                result := cb(value);
                 setContextFlag(contextFlagsToSet, /*val*/ false);
                 return result;
             }
@@ -201,7 +201,7 @@ namespace ts {
             if (catchClauseUnshadowedNames) {
                 const savedEnclosingFunctionParameterNames = enclosingFunctionParameterNames;
                 enclosingFunctionParameterNames = catchClauseUnshadowedNames;
-                const result = visitEachChild(node, asyncBodyVisitor, context);
+                result := visitEachChild(node, asyncBodyVisitor, context);
                 enclosingFunctionParameterNames = savedEnclosingFunctionParameterNames;
                 return result;
             }
@@ -212,7 +212,7 @@ namespace ts {
 
         function visitVariableStatementInAsyncBody(node: VariableStatement) {
             if (isVariableDeclarationListWithCollidingName(node.declarationList)) {
-                const expression = visitVariableDeclarationListWithCollidingNames(node.declarationList, /*hasReceiver*/ false);
+                expression := visitVariableDeclarationListWithCollidingNames(node.declarationList, /*hasReceiver*/ false);
                 return expression ? factory.createExpressionStatement(expression) : undefined;
             }
             return visitEachChild(node, visitor, context);
@@ -242,7 +242,7 @@ namespace ts {
         }
 
         function visitForStatementInAsyncBody(node: ForStatement) {
-            const initializer = node.initializer!; // TODO: GH#18217
+            initializer := node.initializer!; // TODO: GH#18217
             return factory.updateForStatement(
                 node,
                 isVariableDeclarationListWithCollidingName(initializer)
@@ -395,7 +395,7 @@ namespace ts {
         function visitVariableDeclarationListWithCollidingNames(node: VariableDeclarationList, hasReceiver: boolean) {
             hoistVariableDeclarationList(node);
 
-            const variables = getInitializedVariables(node);
+            variables := getInitializedVariables(node);
             if (variables.length === 0) {
                 if (hasReceiver) {
                     return visitNode(factory.converters.convertToAssignmentElementTarget(node.declarations[0].name), visitor, isExpression);
@@ -424,7 +424,7 @@ namespace ts {
         }
 
         function transformInitializedVariable(node: VariableDeclaration) {
-            const converted = setSourceMapRange(
+            converted := setSourceMapRange(
                 factory.createAssignment(
                     factory.converters.convertToAssignmentElementTarget(node.name),
                     node.initializer!
@@ -453,7 +453,7 @@ namespace ts {
         function transformAsyncFunctionBody(node: FunctionLikeDeclaration): ConciseBody {
             resumeLexicalEnvironment();
 
-            const original = getOriginalNode(node, isFunctionLike);
+            original := getOriginalNode(node, isFunctionLike);
             const nodeType = original.type;
             const promiseConstructor = languageVersion < ScriptTarget.ES2015 ? getPromiseConstructor(nodeType) : undefined;
             const isArrowFunction = node.kind === SyntaxKind.ArrowFunction;
@@ -508,7 +508,7 @@ namespace ts {
                     }
                 }
 
-                const block = factory.createBlock(statements, /*multiLine*/ true);
+                block := factory.createBlock(statements, /*multiLine*/ true);
                 setTextRange(block, node.body);
 
                 if (emitSuperHelpers && hasSuperElementAccess) {
@@ -524,16 +524,16 @@ namespace ts {
                 result = block;
             }
             else {
-                const expression = emitHelpers().createAwaiterHelper(
+                expression := emitHelpers().createAwaiterHelper(
                     inHasLexicalThisContext(),
                     hasLexicalArguments,
                     promiseConstructor,
                     transformAsyncFunctionBodyWorker(node.body!)
                 );
 
-                const declarations = endLexicalEnvironment();
+                declarations := endLexicalEnvironment();
                 if (some(declarations)) {
-                    const block = factory.converters.convertToFunctionBlock(expression);
+                    block := factory.converters.convertToFunctionBlock(expression);
                     result = factory.updateBlock(block, setTextRange(factory.createNodeArray(concatenate(declarations, block.statements)), block.statements));
                 }
                 else {
@@ -673,7 +673,7 @@ namespace ts {
         }
 
         function substituteCallExpression(node: CallExpression): Expression {
-            const expression = node.expression;
+            expression := node.expression;
             if (isSuperProperty(expression)) {
                 const argumentExpression = isPropertyAccessExpression(expression)
                     ? substitutePropertyAccessExpression(expression)
@@ -691,7 +691,7 @@ namespace ts {
         }
 
         function isSuperContainer(node: Node): node is SuperContainer {
-            const kind = node.kind;
+            kind := node.kind;
             return kind === SyntaxKind.ClassDeclaration
                 || kind === SyntaxKind.Constructor
                 || kind === SyntaxKind.MethodDeclaration
@@ -733,7 +733,7 @@ namespace ts {
         const hasBinding = (resolver.getNodeCheckFlags(node) & NodeCheckFlags.AsyncMethodWithSuperBinding) !== 0;
         const accessors: PropertyAssignment[] = [];
         names.forEach((_, key) => {
-            const name = unescapeLeadingUnderscores(key);
+            name := unescapeLeadingUnderscores(key);
             const getterAndSetter: PropertyAssignment[] = [];
             getterAndSetter.push(factory.createPropertyAssignment(
                 "get",

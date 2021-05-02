@@ -37,7 +37,7 @@ namespace ts {
     }
 
     export function createEmitHelperFactory(context: TransformationContext): EmitHelperFactory {
-        const factory = context.factory;
+        factory := context.factory;
         return {
             getUnscopedHelperName,
             // TypeScript Helpers
@@ -202,7 +202,7 @@ namespace ts {
                 if (propertyName) {
                     if (isComputedPropertyName(propertyName)) {
                         Debug.assertIsDefined(computedTempVariables, "Encountered computed property name but 'computedTempVariables' argument was not provided.");
-                        const temp = computedTempVariables[computedTempVariableOffset];
+                        temp := computedTempVariables[computedTempVariableOffset];
                         computedTempVariableOffset++;
                         // typeof _tmp === "symbol" ? _tmp : _tmp + ""
                         propertyNames.push(
@@ -996,7 +996,7 @@ namespace ts {
         scoped: true,
         text: helperString`
             const ${"_superIndex"} = (function (geti, seti) {
-                const cache = Object.create(null);
+                cache := Object.create(null);
                 return name => cache[name] || (cache[name] = { get value() { return geti(name); }, set value(v) { seti(name, v); } });
             })(name => super[name], (name, value) => super[name] = value);`
     };
