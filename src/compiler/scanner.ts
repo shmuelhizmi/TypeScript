@@ -161,7 +161,9 @@ namespace ts {
 
     const textToToken = new Map(getEntries({
         ...textToKeywordObj,
-        ":=": SyntaxKind.AssignDeclareToken,
+        ":=>": SyntaxKind.ColonEqualCloseParenToken,
+        ":=)": SyntaxKind.ColonEqualGreaterThanToken,
+        ":=": SyntaxKind.ColonEqualToken,
         "{": SyntaxKind.OpenBraceToken,
         "}": SyntaxKind.CloseBraceToken,
         "(": SyntaxKind.OpenParenToken,
@@ -1896,7 +1898,15 @@ namespace ts {
                         pos++;
                         if (text.charCodeAt(pos) === CharacterCodes.equals) {
                             pos++;
-                            return token = SyntaxKind.AssignDeclareToken;
+                            if (text.charCodeAt(pos) === CharacterCodes.greaterThan) {
+                                pos++;
+                                return token = SyntaxKind.ColonEqualGreaterThanToken;
+                            }
+                            if (text.charCodeAt(pos) === CharacterCodes.closeParen) {
+                                pos++;
+                                return token = SyntaxKind.ColonEqualCloseParenToken;
+                            }
+                            return token = SyntaxKind.ColonEqualToken;
                         }
                         return token = SyntaxKind.ColonToken;
                     case CharacterCodes.semicolon:

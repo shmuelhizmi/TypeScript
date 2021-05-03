@@ -4081,9 +4081,9 @@ namespace ts {
             return !scanner.hasPrecedingLineBreak() && isIdentifier();
         }
 
-        function nextTokenIsAssignDeclare() {
+        function nextTokenIsAssignDeclareOrAssignDeclarFunction() {
             nextToken();
-            return token() === SyntaxKind.AssignDeclareToken;
+            return token() === SyntaxKind.ColonEqualToken || token() === SyntaxKind.ColonEqualCloseParenToken || token() === SyntaxKind.ColonEqualGreaterThanToken;
         }
 
         function parseYieldExpression(): YieldExpression {
@@ -6030,7 +6030,7 @@ namespace ts {
                         continue;
                     default:
                         if (isBindingIdentifier()) {
-                            return nextTokenIsAssignDeclare();
+                            return nextTokenIsAssignDeclareOrAssignDeclarFunction();
                         }
                         return false;
                 }
@@ -6263,13 +6263,13 @@ namespace ts {
                             return parseNamespaceExportDeclaration(pos, hasJSDoc, decorators, modifiers);
                         default:
                             if (isBindingIdentifier()) {
-                                return parseAssignDeclareStatement(pos, hasJSDoc, decorators, modifiers);
+                                return parseAssignDeclareOrAssignDeclareFunctionStatement(pos, hasJSDoc, decorators, modifiers);
                             }
                             return parseExportDeclaration(pos, hasJSDoc, decorators, modifiers);
                     }
                 default:
                     if (isBindingIdentifier()) {
-                        return parseAssignDeclareStatement(getNodePos(), hasJSDoc, decorators, modifiers);
+                        return parseAssignDeclareOrAssignDeclareFunctionStatement(getNodePos(), hasJSDoc, decorators, modifiers);
                     }
                     if (decorators || modifiers) {
                         // We reached this point because we encountered decorators and/or modifiers and assumed a declaration
@@ -6439,47 +6439,116 @@ namespace ts {
             return withJSDoc(finishNode(node, pos), hasJSDoc);
         }
 
-        function parseAssignDeclareStatement(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): VariableStatement {
+        function parseAssignDeclareOrAssignDeclareFunctionStatement(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): VariableStatement {
             name := parseIdentifierOrPattern(Diagnostics.Private_identifiers_are_not_allowed_in_variable_declarations);
-            nextToken(); // finish :=
-            initializer := parseAssignmentExpressionOrHigher();
-            const endPosition = getNodePos();
-            parseSemicolon();
-            const variableStatement = finishNode(
-                factory.createVariableStatement(
-                    modifiers,
-                    finishNode(
-                        factory.createVariableDeclarationList(
-                            createNodeArray(
-                                [
-                                    finishNode(
-                                        factory.createVariableDeclaration(
-                                            name,
-                                            /*exclamationToken*/ undefined,
-                                            /*type*/ undefined,
-                                            initializer
+            if (token() === SyntaxKind.ColonEqualToken) {
+                nextToken(); // finish :=
+                initializer := parseAssignmentExpressionOrHigher();
+                const endPosition = getNodePos();
+                parseSemicolon();
+                const variableStatement = finishNode(
+                    factory.createVariableStatement(
+                        modifiers,
+                        finishNode(
+                            factory.createVariableDeclarationList(
+                                createNodeArray(
+                                    [
+                                        finishNode(
+                                            factory.createVariableDeclaration(
+                                                name,
+                                                /*exclamationToken*/ undefined,
+                                                /*type*/ undefined,
+                                                initializer
+                                            ),
+                                            pos,
+                                            endPosition
                                         ),
-                                        pos,
-                                        endPosition
-                                    ),
-                                ],
-                                pos,
-                                endPosition
+                                    ],
+                                    pos,
+                                    endPosition
+                                ),
+                                NodeFlags.Const,
                             ),
-                            NodeFlags.Const,
+                            pos,
+                            endPosition
+                        )
+                    ),
+                    pos,
+                    endPosition
+                );
+                variableStatement.decorators = decorators;
+                return withJSDoc(
+                    variableStatement,
+                    hasJSDoc
+                );
+            // else it is AssignDeclareFunction
+            } else {
+                const startOfAssignment = getNodePos();
+                const isAsync = token() === SyntaxKind.ColonEqualCloseParenToken;
+                nextToken(); // finish ( isAsync ? :=) : :=> )
+                const endOfAsyncPosition = getNodePos();
+                const body = parseArrowFunctionExpressionBody(/* isAsync */isAsync);
+                const endPosition = getNodePos();
+                parseSemicolon();
+                arrowFunction := finishNode(
+                    factory.createArrowFunction(
+                            (isAsync ?
+                                (createNodeArray(
+                                    [
+                                    finishNode(factory.createModifier(SyntaxKind.AsyncKeyword), pos, endOfAsyncPosition)
+                                    ],
+                                    startOfAssignment,
+                                    endOfAsyncPosition
+                                    )
+                                )
+                            : undefined),
+                            /*typeParameters*/ undefined,
+                            /*parameters*/ createNodeArray([], endOfAsyncPosition, endOfAsyncPosition),
+                            /*type*/ undefined,
+                            finishNode(factory.createToken(SyntaxKind.EqualsGreaterThanToken),startOfAssignment, endOfAsyncPosition),
+                            body,
                         ),
-                        pos,
-                        endPosition
-                    )
-                ),
-                pos,
-                endPosition
-            );
-            variableStatement.decorators = decorators;
-            return withJSDoc(
-                variableStatement,
-                hasJSDoc
-            );
+                        startOfAssignment,
+                        endPosition,
+                )
+                variableDeclaration := finishNode(
+                    factory.createVariableDeclaration(
+                        name,
+                        /*exclamationToken*/ undefined,
+                        /*type*/ undefined,
+                        arrowFunction,
+                    ),
+                    pos,
+                    endPosition
+                );
+                variableDeclarationList := finishNode(
+                    factory.createVariableDeclarationList(
+                        createNodeArray(
+                            [
+                                variableDeclaration,
+                            ],
+                            pos,
+                            endPosition
+                        ),
+                        NodeFlags.Const,
+                    ),
+                    pos,
+                    endPosition
+                )
+                const variableStatement = finishNode(
+                    factory.createVariableStatement(
+                        modifiers,
+                        variableDeclarationList,
+                    ),
+                    pos,
+                    endPosition
+                );
+                variableStatement.decorators = decorators;
+                return withJSDoc(
+                    variableStatement,
+                    hasJSDoc
+                );
+            }
         }
 
         function parseFunctionDeclaration(pos: number, hasJSDoc: boolean, decorators: NodeArray<Decorator> | undefined, modifiers: NodeArray<Modifier> | undefined): FunctionDeclaration {
