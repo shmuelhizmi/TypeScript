@@ -50,7 +50,7 @@ namespace ts {
      * This means that _no transforms should be allowed to occur before this one_.
      */
     export function transformDeclarations(context: TransformationContext) {
-        const throwDiagnostic = () => Debug.fail("Diagnostic emitted without context");
+        throwDiagnostic :=> Debug.fail("Diagnostic emitted without context");
         let getSymbolAccessibilityDiagnostic: GetSymbolAccessibilityDiagnostic = throwDiagnostic;
         let needsDeclare = true;
         let isBundledEmit = false;

@@ -393,7 +393,7 @@ namespace ts {
     }
 
     export const noopFileWatcher: FileWatcher = { close: noop };
-    export const returnNoopFileWatcher = () => noopFileWatcher;
+    export returnNoopFileWatcher :=> noopFileWatcher;
 
     export function createWatchHost(system = sys, reportWatchStatus?: WatchStatusReporter): WatchHost {
         const onWatchStatusChange = reportWatchStatus || createWatchStatusReporter(system);
