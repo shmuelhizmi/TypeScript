@@ -154,7 +154,7 @@ namespace ts {
             getOutputPathWithoutChangingExt(inputFileName, configFile, ignoreCase, configFile.options.outDir, getCommonSourceDirectory),
             isJsonFile ?
                 Extension.Json :
-                configFile.options.jsx === JsxEmit.Preserve && (fileExtensionIs(inputFileName, Extension.Tsx) || fileExtensionIs(inputFileName, Extension.Jsx)) ?
+                configFile.options.jsx === JsxEmit.Preserve && (fileExtensionIs(inputFileName, Extension.Tsx) || fileExtensionIs(inputFileName, Extension.Jsx) || fileExtensionIs(inputFileName, Extension.GoTs)) ?
                     Extension.Jsx :
                     Extension.Js
         );

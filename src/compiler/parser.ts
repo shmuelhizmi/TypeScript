@@ -4082,6 +4082,9 @@ namespace ts {
         }
 
         function nextTokenIsAssignDeclareOrAssignDeclarFunction() {
+            if (languageVariant !== LanguageVariant.GO) {
+                return false;
+            }
             nextToken();
             return token() === SyntaxKind.ColonEqualToken || token() === SyntaxKind.ColonEqualCloseParenToken || token() === SyntaxKind.ColonEqualGreaterThanToken;
         }
@@ -6262,13 +6265,13 @@ namespace ts {
                         case SyntaxKind.AsKeyword:
                             return parseNamespaceExportDeclaration(pos, hasJSDoc, decorators, modifiers);
                         default:
-                            if (isBindingIdentifier()) {
+                            if (isBindingIdentifier() && languageVariant === LanguageVariant.GO) {
                                 return parseAssignDeclareOrAssignDeclareFunctionStatement(pos, hasJSDoc, decorators, modifiers);
                             }
                             return parseExportDeclaration(pos, hasJSDoc, decorators, modifiers);
                     }
                 default:
-                    if (isBindingIdentifier()) {
+                    if (isBindingIdentifier() && languageVariant === LanguageVariant.GO) {
                         return parseAssignDeclareOrAssignDeclareFunctionStatement(getNodePos(), hasJSDoc, decorators, modifiers);
                     }
                     if (decorators || modifiers) {

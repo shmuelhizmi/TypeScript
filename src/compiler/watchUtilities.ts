@@ -489,7 +489,8 @@ namespace ts {
         const realProgram = isArray(program) ? undefined : isBuilderProgram(program) ? program.getProgramOrUndefined() : program;
         const builderProgram = !realProgram && !isArray(program) ? program as BuilderProgram : undefined;
         if (hasSourceFile((filePathWithoutExtension + Extension.Ts) as Path) ||
-            hasSourceFile((filePathWithoutExtension + Extension.Tsx) as Path)) {
+            hasSourceFile((filePathWithoutExtension + Extension.Tsx) as Path) ||
+            hasSourceFile((filePathWithoutExtension + Extension.GoTs) as Path)) {
             writeLog(`Project: ${configFileName} Detected output file: ${fileOrDirectory}`);
             return true;
         }

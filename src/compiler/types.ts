@@ -6020,6 +6020,7 @@ namespace ts {
         esModuleInterop?: boolean;
         /* @internal */ showConfig?: boolean;
         useDefineForClassFields?: boolean;
+        defaultTSLanguage?: "go" | "ts" | "jsx";
 
         [option: string]: CompilerOptionsValue | TsConfigSourceFile | undefined;
     }
@@ -6104,7 +6105,8 @@ namespace ts {
          * Used on extensions that doesn't define the ScriptKind but the content defines it.
          * Deferred extensions are going to be included in all project contexts.
          */
-        Deferred = 7
+        Deferred = 7,
+        GOTS = 8,
     }
 
     export const enum ScriptTarget {
@@ -6124,7 +6126,8 @@ namespace ts {
 
     export const enum LanguageVariant {
         Standard,
-        JSX
+        JSX,
+        GO,
     }
 
     /** Either a parsed command line or a parsed tsconfig.json */
@@ -6449,7 +6452,8 @@ namespace ts {
         Js = ".js",
         Jsx = ".jsx",
         Json = ".json",
-        TsBuildInfo = ".tsbuildinfo"
+        TsBuildInfo = ".tsbuildinfo",
+        GoTs = ".gots"
     }
 
     export interface ResolvedModuleWithFailedLookupLocations {

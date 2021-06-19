@@ -1917,7 +1917,7 @@ namespace ts {
                 const isTsNoCheck = !!sourceFile.checkJsDirective && sourceFile.checkJsDirective.enabled === false;
                 // By default, only type-check .ts, .tsx, 'Deferred' and 'External' files (external files are added by plugins)
                 const includeBindAndCheckDiagnostics = !isTsNoCheck && (sourceFile.scriptKind === ScriptKind.TS || sourceFile.scriptKind === ScriptKind.TSX ||
-                    sourceFile.scriptKind === ScriptKind.External || isCheckJs || sourceFile.scriptKind === ScriptKind.Deferred);
+                    sourceFile.scriptKind === ScriptKind.External || isCheckJs || sourceFile.scriptKind === ScriptKind.Deferred || sourceFile.scriptKind === ScriptKind.GOTS);
                 const bindDiagnostics: readonly Diagnostic[] = includeBindAndCheckDiagnostics ? sourceFile.bindDiagnostics : emptyArray;
                 const checkDiagnostics = includeBindAndCheckDiagnostics ? typeChecker.getDiagnostics(sourceFile, cancellationToken) : emptyArray;
 
@@ -3649,7 +3649,8 @@ namespace ts {
                 // Otherwise just check if sourceFile with the name exists
                 const filePathWithoutExtension = removeFileExtension(filePath);
                 return !!getSourceFileByPath((filePathWithoutExtension + Extension.Ts) as Path) ||
-                    !!getSourceFileByPath((filePathWithoutExtension + Extension.Tsx) as Path);
+                    !!getSourceFileByPath((filePathWithoutExtension + Extension.Tsx) as Path) ||
+                    !!getSourceFileByPath((filePathWithoutExtension + Extension.GoTs) as Path);
             }
             return false;
         }
@@ -3964,6 +3965,7 @@ namespace ts {
                 // These are always allowed.
                 return undefined;
             case Extension.Tsx:
+            case Extension.GoTs:
                 return needJsx();
             case Extension.Jsx:
                 return needJsx() || needAllowJs();

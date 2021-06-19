@@ -791,6 +791,7 @@ namespace ts {
             case ScriptKind.TS:
             case ScriptKind.JSX:
             case ScriptKind.TSX:
+            case ScriptKind.GOTS:
                 break;
             default:
                 return false;
@@ -5991,9 +5992,31 @@ namespace ts {
         return Comparison.EqualTo;
     }
 
-    export function getLanguageVariant(scriptKind: ScriptKind) {
-        // .tsx and .jsx files are treated as jsx language variant.
-        return scriptKind === ScriptKind.TSX || scriptKind === ScriptKind.JSX || scriptKind === ScriptKind.JS || scriptKind === ScriptKind.JSON ? LanguageVariant.JSX : LanguageVariant.Standard;
+    export function getLanguageVariant(scriptKind: ScriptKind, compilerOptions: CompilerOptions) {
+        switch(scriptKind) {
+            case ScriptKind.TSX:
+            case ScriptKind.JSX:
+            case ScriptKind.JS:
+            case ScriptKind.JSON: {
+                return LanguageVariant.JSX;
+            }
+            case ScriptKind.GOTS: {
+                return LanguageVariant.GO;
+            }
+            case ScriptKind.TS: {
+                switch(compilerOptions.defaultTSLanguage) {
+                    case "go": {
+                        return LanguageVariant.GO;
+                    }
+                    case "jsx": {
+                        return LanguageVariant.JSX;
+                    }
+                }
+            }
+            default: {
+                return LanguageVariant.Standard;
+            }
+        }
     }
 
     export function getEmitScriptTarget(compilerOptions: CompilerOptions) {
@@ -6555,6 +6578,8 @@ namespace ts {
                 return ScriptKind.TS;
             case Extension.Tsx:
                 return ScriptKind.TSX;
+            case Extension.GoTs:
+                return ScriptKind.GOTS;
             case Extension.Json:
                 return ScriptKind.JSON;
             default:
@@ -6565,10 +6590,10 @@ namespace ts {
     /**
      *  List of supported extensions in order of file resolution precedence.
      */
-    export const supportedTSExtensions: readonly Extension[] = [Extension.Ts, Extension.Tsx, Extension.Dts];
-    export const supportedTSExtensionsWithJson: readonly Extension[] = [Extension.Ts, Extension.Tsx, Extension.Dts, Extension.Json];
+    export const supportedTSExtensions: readonly Extension[] = [Extension.Ts, Extension.Tsx, Extension.GoTs, Extension.Dts];
+    export const supportedTSExtensionsWithJson: readonly Extension[] = [Extension.Ts, Extension.Tsx, Extension.Dts, Extension.Json, Extension.GoTs];
     /** Must have ".d.ts" first because if ".ts" goes first, that will be detected as the extension instead of ".d.ts". */
-    export const supportedTSExtensionsForExtractExtension: readonly Extension[] = [Extension.Dts, Extension.Ts, Extension.Tsx];
+    export const supportedTSExtensionsForExtractExtension: readonly Extension[] = [Extension.Dts, Extension.Ts, Extension.Tsx, Extension.GoTs];
     export const supportedJSExtensions: readonly Extension[] = [Extension.Js, Extension.Jsx];
     export const supportedJSAndJsonExtensions: readonly Extension[] = [Extension.Js, Extension.Jsx, Extension.Json];
     const allSupportedExtensions: readonly Extension[] = [...supportedTSExtensions, ...supportedJSExtensions];
@@ -6686,7 +6711,7 @@ namespace ts {
         }
     }
 
-    const extensionsToRemove = [Extension.Dts, Extension.Ts, Extension.Js, Extension.Tsx, Extension.Jsx, Extension.Json];
+    const extensionsToRemove = [Extension.Dts, Extension.Ts, Extension.Js, Extension.Tsx, Extension.GoTs, Extension.Jsx, Extension.Json];
     export function removeFileExtension(path: string): string {
         for (const ext of extensionsToRemove) {
             extensionless := tryRemoveExtension(path, ext);
@@ -6727,7 +6752,7 @@ namespace ts {
 
     /** True if an extension is one of the supported TypeScript extensions. */
     export function extensionIsTS(ext: Extension): boolean {
-        return ext === Extension.Ts || ext === Extension.Tsx || ext === Extension.Dts;
+        return ext === Extension.Ts || ext === Extension.Tsx || ext === Extension.GoTs || ext === Extension.Dts;
     }
 
     export function resolutionExtensionIsTSOrJson(ext: Extension) {
