@@ -1005,6 +1005,24 @@ type TypeReference struct {
 
 func (t *TypeReference) AsTypeReference() *TypeReference { return t }
 
+// memberOrder records the named-member order of the first complete instantiation of a class or interface
+// (see getNamedMembersWithOrder). container and declarations are the partition inputs of getNamedMembers;
+// they are compared defensively before the order is reused.
+type memberOrder struct {
+	container    *ast.Symbol
+	declarations []*ast.Node
+	entries      []memberOrderEntry
+}
+
+// memberOrderEntry identifies one member by what getNamedMembers orders and partitions on: its name, first
+// declaration and value declaration. Recording these rather than the instantiated symbols keeps the first
+// instantiation and its mapper collectable.
+type memberOrderEntry struct {
+	name             string
+	declaration      *ast.Node
+	valueDeclaration *ast.Node
+}
+
 // InterfaceType (when generic, serves as reference to instantiation of itself)
 
 type InterfaceType struct {
@@ -1020,6 +1038,7 @@ type InterfaceType struct {
 	declaredCallSignatures      []*Signature    // Declared call signatures
 	declaredConstructSignatures []*Signature    // Declared construct signatures
 	declaredIndexInfos          []*IndexInfo    // Declared index signatures
+	instantiatedMemberOrder     *memberOrder    // Named-member order of the first complete instantiation (see getNamedMembersWithOrder)
 }
 
 func (t *InterfaceType) AsInterfaceType() *InterfaceType { return t }
