@@ -548,26 +548,33 @@ func (tx *DeclarationTransformer) getTypeReferences() (result []*ast.FileReferen
 	return result
 }
 
-func (tx *DeclarationTransformer) setupDiagnosticContext(input *ast.Node) (bool, func()) {
-	canProduceDiagnostic := canProduceDiagnostics(input)
-	oldWithinObjectLiteralType := tx.suppressNewDiagnosticContexts
-	shouldEnterSuppressNewDiagnosticsContextContext := (input.Kind == ast.KindTypeLiteral || input.Kind == ast.KindMappedType) && !(input.Parent.Kind == ast.KindTypeAliasDeclaration || input.Parent.Kind == ast.KindJSTypeAliasDeclaration)
+type diagnosticContext struct {
+	getSymbolAccessibilityDiagnostic GetSymbolAccessibilityDiagnostic
+	errorNameNode                    *ast.Node
+	suppressNewDiagnosticContexts    bool
+}
 
-	oldDiag := tx.state.getSymbolAccessibilityDiagnostic
+func (tx *DeclarationTransformer) setupDiagnosticContext(input *ast.Node) (bool, diagnosticContext) {
+	previous := diagnosticContext{
+		getSymbolAccessibilityDiagnostic: tx.state.getSymbolAccessibilityDiagnostic,
+		errorNameNode:                    tx.state.errorNameNode,
+		suppressNewDiagnosticContexts:    tx.suppressNewDiagnosticContexts,
+	}
+	canProduceDiagnostic := canProduceDiagnostics(input)
+	shouldSuppress := (input.Kind == ast.KindTypeLiteral || input.Kind == ast.KindMappedType) && !(input.Parent.Kind == ast.KindTypeAliasDeclaration || input.Parent.Kind == ast.KindJSTypeAliasDeclaration)
 	if canProduceDiagnostic && !tx.suppressNewDiagnosticContexts {
 		tx.state.getSymbolAccessibilityDiagnostic = createGetSymbolAccessibilityDiagnosticForNode(input)
 	}
-	oldName := tx.state.errorNameNode
-
-	if shouldEnterSuppressNewDiagnosticsContextContext {
+	if shouldSuppress {
 		tx.suppressNewDiagnosticContexts = true
 	}
+	return canProduceDiagnostic, previous
+}
 
-	return canProduceDiagnostic, func() {
-		tx.state.getSymbolAccessibilityDiagnostic = oldDiag
-		tx.state.errorNameNode = oldName
-		tx.suppressNewDiagnosticContexts = oldWithinObjectLiteralType
-	}
+func (tx *DeclarationTransformer) restoreDiagnosticContext(previous diagnosticContext) {
+	tx.state.getSymbolAccessibilityDiagnostic = previous.getSymbolAccessibilityDiagnostic
+	tx.state.errorNameNode = previous.errorNameNode
+	tx.suppressNewDiagnosticContexts = previous.suppressNewDiagnosticContexts
 }
 
 func (tx *DeclarationTransformer) visitDeclarationSubtree(input *ast.Node) *ast.Node {
@@ -616,8 +623,8 @@ func (tx *DeclarationTransformer) visitDeclarationSubtree(input *ast.Node) *ast.
 		tx.enclosingDeclaration = input
 	}
 
-	canProduceDiagnostic, cleanupDiagnosticContext := tx.setupDiagnosticContext(input)
-	defer cleanupDiagnosticContext()
+	canProduceDiagnostic, previousDiagnosticContext := tx.setupDiagnosticContext(input)
+	defer tx.restoreDiagnosticContext(previousDiagnosticContext)
 
 	var result *ast.Node
 
@@ -2668,8 +2675,8 @@ func (tx *DeclarationTransformer) stripDeclareModifiers(node *ast.Node) *ast.Nod
 
 func (tx *DeclarationTransformer) visitCJSExportAssignments(expression *ast.Node) *ast.Node {
 	if expression != nil {
-		_, cleanupDiagnosticContext := tx.setupDiagnosticContext(expression)
-		defer cleanupDiagnosticContext()
+		_, previousDiagnosticContext := tx.setupDiagnosticContext(expression)
+		defer tx.restoreDiagnosticContext(previousDiagnosticContext)
 		switch ast.GetAssignmentDeclarationKind(expression) {
 		case ast.JSDeclarationKindModuleExports:
 			if tx.state.currentSourceFile.CommonJSModuleIndicator != nil {
@@ -2688,8 +2695,8 @@ func (tx *DeclarationTransformer) visitCJSExportAssignments(expression *ast.Node
 
 func (tx *DeclarationTransformer) visitNestedExpression(expression *ast.Node) *ast.Node {
 	if expression != nil {
-		_, cleanupDiagnosticContext := tx.setupDiagnosticContext(expression)
-		defer cleanupDiagnosticContext()
+		_, previousDiagnosticContext := tx.setupDiagnosticContext(expression)
+		defer tx.restoreDiagnosticContext(previousDiagnosticContext)
 		switch ast.GetAssignmentDeclarationKind(expression) {
 		case ast.JSDeclarationKindProperty:
 			tx.transformExpandoAssignment(expression.AsBinaryExpression())
@@ -2785,8 +2792,8 @@ func (tx *DeclarationTransformer) transformExpandoAssignment(node *ast.BinaryExp
 		localName = tx.Factory().NewGeneratedNameForNode(node.AsNode())
 	}
 
-	_, cleanupDiagnosticContext := tx.setupDiagnosticContext(node.AsNode())
-	defer cleanupDiagnosticContext()
+	_, previousDiagnosticContext := tx.setupDiagnosticContext(node.AsNode())
+	defer tx.restoreDiagnosticContext(previousDiagnosticContext)
 
 	if ast.IsIdentifier(node.Right) {
 		// alias-like, emit an `export {name}` or `export {name as alias}`
@@ -2875,8 +2882,8 @@ func (tx *DeclarationTransformer) transformExpandoHost(name *ast.Node, declarati
 		modifierFlags ^= ast.ModifierFlagsExport
 	}
 
-	_, cleanupDiagnosticContext := tx.setupDiagnosticContext(declaration)
-	defer cleanupDiagnosticContext()
+	_, previousDiagnosticContext := tx.setupDiagnosticContext(declaration)
+	defer tx.restoreDiagnosticContext(previousDiagnosticContext)
 
 	modifiers := tx.Factory().NewModifierList(ast.CreateModifiersFromModifierFlags(modifierFlags, tx.Factory().NewModifier))
 	replacement := make([]*ast.Node, 0)
