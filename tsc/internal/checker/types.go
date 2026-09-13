@@ -1005,6 +1005,14 @@ type TypeReference struct {
 
 func (t *TypeReference) AsTypeReference() *TypeReference { return t }
 
+// Member order depends on declaration identity and name, not on the instantiated property type.
+// Retaining declaration metadata avoids keeping the first instance and its mapper alive.
+type memberOrderEntry struct {
+	name             string
+	declaration      *ast.Node
+	valueDeclaration *ast.Node
+}
+
 // InterfaceType (when generic, serves as reference to instantiation of itself)
 
 type InterfaceType struct {
@@ -1020,6 +1028,8 @@ type InterfaceType struct {
 	declaredCallSignatures      []*Signature    // Declared call signatures
 	declaredConstructSignatures []*Signature    // Declared construct signatures
 	declaredIndexInfos          []*IndexInfo    // Declared index signatures
+
+	instantiatedMemberOrder []memberOrderEntry
 }
 
 func (t *InterfaceType) AsInterfaceType() *InterfaceType { return t }

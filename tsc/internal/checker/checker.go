@@ -19482,7 +19482,11 @@ func (c *Checker) resolveObjectTypeMembers(t *Type, source *Type, typeParameters
 		}
 		t.objectFlags &^= ObjectFlagsUnresolvedMembers
 	}
-	c.setStructuredTypeMembers(t, members, callSignatures, constructSignatures, indexInfos)
+	if instantiated && resolved.baseTypesResolved && source.objectFlags&ObjectFlagsClassOrInterface != 0 && source.objectFlags&ObjectFlagsUnresolvedMembers == 0 {
+		c.setStructuredTypeMembersWithOrder(t, members, callSignatures, constructSignatures, indexInfos, resolved)
+	} else {
+		c.setStructuredTypeMembers(t, members, callSignatures, constructSignatures, indexInfos)
+	}
 }
 
 func findIndexInfo(indexInfos []*IndexInfo, keyType *Type) *IndexInfo {
@@ -22395,6 +22399,49 @@ func (c *Checker) getResolvedTypeParameterDefault(t *Type) *Type {
 func (c *Checker) getDefaultOrUnknownFromTypeParameter(t *Type) *Type {
 	result := c.getDefaultFromTypeParameter(t)
 	return core.IfElse(result != nil, result, c.unknownType)
+}
+
+func (c *Checker) getNamedMembersWithOrder(members ast.SymbolTable, container *ast.Symbol, source *InterfaceType) []*ast.Symbol {
+	if properties := projectMemberOrder(members, source.instantiatedMemberOrder); properties != nil {
+		return properties
+	}
+	properties := c.getNamedMembers(members, container)
+	if source.instantiatedMemberOrder == nil {
+		source.instantiatedMemberOrder = createMemberOrder(members, properties)
+	}
+	return properties
+}
+
+func projectMemberOrder(members ast.SymbolTable, order []memberOrderEntry) []*ast.Symbol {
+	if len(order) < 2 || len(members) != len(order) {
+		return nil
+	}
+	properties := make([]*ast.Symbol, len(order))
+	for i, entry := range order {
+		symbol := members[entry.name]
+		if symbol == nil || symbol.Name != entry.name || symbol.Flags&ast.SymbolFlagsValue == 0 ||
+			symbol.ValueDeclaration != entry.valueDeclaration || core.FirstOrNil(symbol.Declarations) != entry.declaration {
+			return nil
+		}
+		properties[i] = symbol
+	}
+	return properties
+}
+
+func createMemberOrder(members ast.SymbolTable, properties []*ast.Symbol) []memberOrderEntry {
+	if len(properties) < 2 || len(properties) != len(members) {
+		return nil
+	}
+	for name, symbol := range members {
+		if symbol.Name != name || symbol.Flags&ast.SymbolFlagsValue == 0 {
+			return nil
+		}
+	}
+	order := make([]memberOrderEntry, len(properties))
+	for i, symbol := range properties {
+		order[i] = memberOrderEntry{name: symbol.Name, declaration: core.FirstOrNil(symbol.Declarations), valueDeclaration: symbol.ValueDeclaration}
+	}
+	return order
 }
 
 func (c *Checker) getNamedMembers(members ast.SymbolTable, container *ast.Symbol) []*ast.Symbol {
@@ -25543,10 +25590,18 @@ func (c *Checker) cloneTypeReference(source *Type) *Type {
 }
 
 func (c *Checker) setStructuredTypeMembers(t *Type, members ast.SymbolTable, callSignatures []*Signature, constructSignatures []*Signature, indexInfos []*IndexInfo) {
+	c.setStructuredTypeMembersWithOrder(t, members, callSignatures, constructSignatures, indexInfos, nil)
+}
+
+func (c *Checker) setStructuredTypeMembersWithOrder(t *Type, members ast.SymbolTable, callSignatures []*Signature, constructSignatures []*Signature, indexInfos []*IndexInfo, source *InterfaceType) {
 	t.objectFlags |= ObjectFlagsMembersResolved
 	data := t.AsStructuredType()
 	data.members = members
-	data.properties = c.getNamedMembers(members, t.symbol)
+	if source != nil {
+		data.properties = c.getNamedMembersWithOrder(members, t.symbol, source)
+	} else {
+		data.properties = c.getNamedMembers(members, t.symbol)
+	}
 	if len(callSignatures) != 0 {
 		if len(constructSignatures) != 0 {
 			data.signatures = core.Concatenate(callSignatures, constructSignatures)
