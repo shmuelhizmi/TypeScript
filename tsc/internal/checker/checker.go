@@ -895,6 +895,7 @@ type Checker struct {
 	packagesMap                                 map[string]bool
 	activeMappers                               []*TypeMapper
 	activeTypeMappersCaches                     []map[CacheHashKey]*Type
+	activeTypeMappersTypeCaches                 []map[TypeId]*Type
 	ambientModulesOnce                          sync.Once
 	ambientModules                              []*ast.Symbol
 	withinUnreachableCode                       bool
@@ -22469,9 +22470,18 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 	index := c.findActiveMapper(m)
 	var key CacheHashKey
 	var cache map[CacheHashKey]*Type
+	var typeCache map[TypeId]*Type
 	if index == -1 {
 		// A newly active mapper has an empty cache and its result is not retained.
 		c.pushActiveMapper(m)
+	} else if alias == nil {
+		typeCache = c.activeTypeMappersTypeCaches[index]
+		if typeCache == nil {
+			typeCache = make(map[TypeId]*Type, 1)
+			c.activeTypeMappersTypeCaches[index] = typeCache
+		} else if cachedType, ok := typeCache[t.id]; ok {
+			return cachedType
+		}
 	} else {
 		var b keyBuilder
 		b.writeType(t)
@@ -22491,6 +22501,8 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 	result := c.instantiateTypeWorker(t, m, alias)
 	if index == -1 {
 		c.popActiveMapper()
+	} else if alias == nil {
+		typeCache[t.id] = result
 	} else {
 		cache[key] = result
 	}
@@ -22508,6 +22520,11 @@ func (c *Checker) pushActiveMapper(mapper *TypeMapper) {
 	} else {
 		c.activeTypeMappersCaches = append(c.activeTypeMappersCaches, nil)
 	}
+	if cap(c.activeTypeMappersTypeCaches) > lastIndex {
+		c.activeTypeMappersTypeCaches = c.activeTypeMappersTypeCaches[:lastIndex+1]
+	} else {
+		c.activeTypeMappersTypeCaches = append(c.activeTypeMappersTypeCaches, nil)
+	}
 }
 
 func (c *Checker) popActiveMapper() {
@@ -22518,6 +22535,8 @@ func (c *Checker) popActiveMapper() {
 	lastIndex := len(c.activeTypeMappersCaches) - 1
 	clear(c.activeTypeMappersCaches[lastIndex])
 	c.activeTypeMappersCaches = c.activeTypeMappersCaches[:lastIndex]
+	clear(c.activeTypeMappersTypeCaches[lastIndex])
+	c.activeTypeMappersTypeCaches = c.activeTypeMappersTypeCaches[:lastIndex]
 }
 
 func (c *Checker) findActiveMapper(mapper *TypeMapper) int {
@@ -22526,6 +22545,9 @@ func (c *Checker) findActiveMapper(mapper *TypeMapper) int {
 
 func (c *Checker) clearActiveMapperCaches() {
 	for _, cache := range c.activeTypeMappersCaches {
+		clear(cache)
+	}
+	for _, cache := range c.activeTypeMappersTypeCaches {
 		clear(cache)
 	}
 }
