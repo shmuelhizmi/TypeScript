@@ -22396,24 +22396,26 @@ func (c *Checker) getNamedMembers(members ast.SymbolTable, container *ast.Symbol
 	if len(members) == 0 {
 		return nil
 	}
-	// For classes and interfaces, we store explicitly declared members ahead of inherited members. This ensures we process
-	// explicitly declared members first in type relations, which is beneficial because explicitly declared members are more
-	// likely to contain discriminating differences. See for example https://github.com/microsoft/TypeScript/tsc/issues/1968.
-	result := make([]*ast.Symbol, 0, len(members))
-	var containedCount int
-	if container != nil && container.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsInterface) != 0 {
-		for id, symbol := range members {
-			if c.isNamedMember(symbol, id) && c.isDeclarationContainedBy(symbol, container) {
-				result = append(result, symbol)
-			}
-		}
-		containedCount = len(result)
-	}
+	// Declared members precede inherited members so type relations encounter discriminating differences early.
+	// See for example https://github.com/microsoft/TypeScript/tsc/issues/1968.
+	result := make([]*ast.Symbol, len(members))
+	containedCount, inheritedStart := 0, len(result)
+	partition := container != nil && container.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsInterface) != 0
 	for id, symbol := range members {
-		if c.isNamedMember(symbol, id) && (container == nil || container.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsInterface) == 0 || !c.isDeclarationContainedBy(symbol, container)) {
-			result = append(result, symbol)
+		if !c.isNamedMember(symbol, id) {
+			continue
+		}
+		if partition && c.isDeclarationContainedBy(symbol, container) {
+			result[containedCount] = symbol
+			containedCount++
+		} else {
+			inheritedStart--
+			result[inheritedStart] = symbol
 		}
 	}
+	count := containedCount + copy(result[containedCount:], result[inheritedStart:])
+	clear(result[count:])
+	result = result[:count]
 	c.sortSymbols(result[:containedCount])
 	c.sortSymbols(result[containedCount:])
 	return result
