@@ -22402,12 +22402,21 @@ func (c *Checker) getDefaultOrUnknownFromTypeParameter(t *Type) *Type {
 }
 
 func (c *Checker) getNamedMembersWithOrder(members ast.SymbolTable, container *ast.Symbol, source *InterfaceType) []*ast.Symbol {
-	if properties := projectMemberOrder(members, source.instantiatedMemberOrder); properties != nil {
-		return properties
+	var declarations []*ast.Node
+	if container != nil {
+		declarations = container.Declarations
+	}
+	order := source.instantiatedMemberOrder
+	if order != nil && order.container == container && slices.Equal(order.declarations, declarations) {
+		if properties := projectMemberOrder(members, order.entries); properties != nil {
+			return properties
+		}
 	}
 	properties := c.getNamedMembers(members, container)
-	if source.instantiatedMemberOrder == nil {
-		source.instantiatedMemberOrder = createMemberOrder(members, properties)
+	if order == nil {
+		if entries := createMemberOrder(members, properties); entries != nil {
+			source.instantiatedMemberOrder = &memberOrder{container: container, declarations: slices.Clone(declarations), entries: entries}
+		}
 	}
 	return properties
 }
