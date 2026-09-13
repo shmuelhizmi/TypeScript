@@ -995,9 +995,9 @@ func (c *Checker) censusObjectTypeFingerprint(t *Type) fingerprint {
 		b.writeFingerprint(c.censusSymbolFingerprint(t.symbol))
 	case t.objectFlags&ObjectFlagsReference != 0:
 		ref := t.AsTypeReference()
-		if t.objectFlags&ObjectFlagsTuple != 0 {
-			// A tuple target (class and interface targets are handled above): its element shape.
-			tuple := t.AsTupleType()
+		if tuple, ok := t.data.(*TupleType); ok {
+			// A tuple target (class and interface targets are handled above): its element shape. The tuple object
+			// flag alone does not identify one: cloneTypeReference copies it onto plain references to the target.
 			b.writeByte('T')
 			for _, e := range tuple.elementInfos {
 				b.writeUint32(uint32(e.flags))
