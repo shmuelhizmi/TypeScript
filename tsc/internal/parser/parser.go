@@ -85,6 +85,7 @@ type Parser struct {
 	hasParseError               bool
 
 	identifierCount            int
+	genericConstructCount      int
 	notParenthesizedArrow      collections.Set[int]
 	nodeSliceArena             core.Arena[*ast.Node]
 	stringSliceArena           core.Arena[string]
@@ -476,6 +477,7 @@ func (p *Parser) finishSourceFile(result *ast.SourceFile, isDeclarationFile bool
 	result.NodeCount = p.factory.NodeCount()
 	result.TextCount = p.factory.TextCount()
 	result.IdentifierCount = p.identifierCount
+	result.GenericConstructCount = p.genericConstructCount
 	result.SetJSDocCache(p.createJSDocCache())
 	// For non-JS files, enable lazy JSDoc parsing on demand
 	if !p.isJavaScript() {
@@ -2672,6 +2674,7 @@ func (p *Parser) parseType() *ast.TypeNode {
 			trueType := doInContext(p, ast.NodeFlagsDisallowConditionalTypesContext, false, (*Parser).parseType)
 			p.parseExpected(ast.KindColonToken)
 			falseType := doInContext(p, ast.NodeFlagsDisallowConditionalTypesContext, false, (*Parser).parseType)
+			p.genericConstructCount++
 			conditionalType := p.factory.NewConditionalTypeNode(typeNode, extendsType, trueType, falseType)
 			p.finishNode(conditionalType, pos)
 			typeNode = conditionalType
@@ -2742,6 +2745,7 @@ func (p *Parser) parseTypeOperator(operator ast.Kind) *ast.Node {
 func (p *Parser) parseInferType() *ast.Node {
 	pos := p.nodePos()
 	p.parseExpected(ast.KindInferKeyword)
+	p.genericConstructCount++
 	return p.finishNode(p.factory.NewInferTypeNode(p.parseTypeParameterOfInferType()), pos)
 }
 
@@ -2749,6 +2753,7 @@ func (p *Parser) parseTypeParameterOfInferType() *ast.Node {
 	pos := p.nodePos()
 	name := p.parseIdentifier()
 	constraint := p.tryParseConstraintOfInferType()
+	p.genericConstructCount++
 	return p.finishNode(p.factory.NewTypeParameterDeclaration(nil /*modifiers*/, name, constraint, nil /*expression*/, nil /*defaultType*/), pos)
 }
 
@@ -2784,6 +2789,7 @@ func (p *Parser) parsePostfixTypeOrHigher() *ast.Node {
 			if p.isStartOfType(false /*isStartOfParameter*/) {
 				indexType := p.parseType()
 				p.parseExpected(ast.KindCloseBracketToken)
+				p.genericConstructCount++
 				typeNode = p.finishNode(p.factory.NewIndexedAccessTypeNode(typeNode, indexType), pos)
 			} else {
 				p.parseExpected(ast.KindCloseBracketToken)
@@ -3212,6 +3218,7 @@ func (p *Parser) parseMappedType() *ast.Node {
 	p.parseSemicolon()
 	members := p.parseList(PCTypeMembers, (*Parser).parseTypeMember)
 	p.parseExpected(ast.KindCloseBraceToken)
+	p.genericConstructCount++
 	return p.finishNode(p.factory.NewMappedTypeNode(readonlyToken, typeParameter, nameType, questionToken, typeNode, members), pos)
 }
 
@@ -3220,6 +3227,7 @@ func (p *Parser) parseMappedTypeParameter() *ast.Node {
 	name := p.parseIdentifierName()
 	p.parseExpected(ast.KindInKeyword)
 	typeNode := p.parseType()
+	p.genericConstructCount++
 	return p.finishNode(p.factory.NewTypeParameterDeclaration(nil /*modifiers*/, name, typeNode, nil /*expression*/, nil /*defaultType*/), pos)
 }
 
@@ -3306,6 +3314,7 @@ func (p *Parser) parseTypeParameter() *ast.Node {
 	if p.parseOptional(ast.KindEqualsToken) {
 		defaultType = p.parseType()
 	}
+	p.genericConstructCount++
 	result := p.factory.NewTypeParameterDeclaration(modifiers, name, constraint, expression, defaultType)
 	return p.finishNode(result, pos)
 }
@@ -3737,6 +3746,7 @@ func (p *Parser) parseAssertsTypePredicate() *ast.TypeNode {
 
 func (p *Parser) parseTemplateType() *ast.Node {
 	pos := p.nodePos()
+	p.genericConstructCount++
 	return p.finishNode(p.factory.NewTemplateLiteralTypeNode(p.parseTemplateHead(false /*isTaggedTemplate*/), p.parseTemplateTypeSpans()), pos)
 }
 

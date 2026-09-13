@@ -2487,7 +2487,10 @@ type SourceFile struct {
 	CheckJsDirective            *CheckJsDirective
 	NodeCount                   int
 	TextCount                   int
-	CommonJSModuleIndicator     *Node
+	// GenericConstructCount is the number of type parameters and of conditional, mapped, infer, indexed access and
+	// template literal types in the file. The checker pool uses it to choose the checker count.
+	GenericConstructCount   int
+	CommonJSModuleIndicator *Node
 	// If this is the SourceFile itself, then this module was "forced"
 	// to be an external module (previously "true").
 	ExternalModuleIndicator *Node

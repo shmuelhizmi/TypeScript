@@ -108,6 +108,9 @@ type Program struct {
 	sourceFilesToEmitOnce sync.Once
 	sourceFilesToEmit     []*ast.SourceFile
 
+	importEdgesOnce  sync.Once
+	importEdgesCache [][]int
+
 	// Cached unresolved imports for ATA
 	unresolvedImports lazyValue[collections.Set[string]]
 	knownSymlinks     lazyValue[symlinks.KnownSymlinks]
@@ -622,6 +625,38 @@ func (p *Program) GetResolvedModuleFromModuleSpecifier(file ast.HasFileName, mod
 
 func (p *Program) GetResolvedModules() map[tspath.Path]module.ModeAwareCache[*module.ResolvedModule] {
 	return p.resolvedModules
+}
+
+// importEdges returns, for every file index in program.files, the indices of the program files it imports, each
+// once, in resolution-cache order.
+func (p *Program) importEdges() [][]int {
+	p.importEdgesOnce.Do(func() {
+		fileIndices := make(map[*ast.SourceFile]int, len(p.files))
+		for i, file := range p.files {
+			fileIndices[file] = i
+		}
+		edges := make([][]int, len(p.files))
+		seen := make(map[int]struct{})
+		for i, file := range p.files {
+			clear(seen)
+			for _, resolved := range p.resolvedModules[file.Path()] {
+				if resolved == nil || !resolved.IsResolved() {
+					continue
+				}
+				index, ok := fileIndices[p.GetSourceFileForResolvedModule(resolved.ResolvedFileName)]
+				if !ok || index == i {
+					continue
+				}
+				if _, done := seen[index]; done {
+					continue
+				}
+				seen[index] = struct{}{}
+				edges[i] = append(edges[i], index)
+			}
+		}
+		p.importEdgesCache = edges
+	})
+	return p.importEdgesCache
 }
 
 // GetPackagesMap returns a lazily-cached map of package names to whether they bundle types.

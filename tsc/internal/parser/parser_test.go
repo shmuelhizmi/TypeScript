@@ -329,3 +329,28 @@ namespace N {
 	assert.Equal(t, positionMap.UTF8ToUTF16(afterBoxDrawingCharacter), afterBoxDrawingCharacter-2)
 	assert.Equal(t, positionMap.UTF8ToUTF16(len(sourceText)), len(sourceText)-2)
 }
+
+func TestGenericConstructCount(t *testing.T) {
+	t.Parallel()
+	sourceText := `
+export declare function box<T>(value: T): Box<T>;
+export interface Box<T> { value: T; map<U>(f: (value: T) => U): Box<U>; }
+export type Unbox<T> = T extends Box<infer U> ? U : never;
+export type Keys<T> = { [K in keyof T]: T[K] };
+export type Prefixed<T extends string> = ` + "`p-${T}`" + `;
+export const plain: { a: string[] } = { a: [] };
+`
+	file := parser.ParseSourceFile(ast.SourceFileParseOptions{
+		FileName: "/lib.d.ts",
+		Path:     "/lib.d.ts",
+	}, sourceText, core.ScriptKindTS)
+	// Type parameters: box<T>, Box<T>, map<U>, Unbox<T>, infer U, Keys<T>, K, Prefixed<T> (8); one conditional, one
+	// infer, one mapped, one indexed access (T[K]) and one template literal type.
+	assert.Equal(t, file.GenericConstructCount, 13)
+
+	plain := parser.ParseSourceFile(ast.SourceFileParseOptions{
+		FileName: "/plain.ts",
+		Path:     "/plain.ts",
+	}, "export const values: Array<number> = [1, 2, 3];\nexport function id(x: number) { return x; }\n", core.ScriptKindTS)
+	assert.Equal(t, plain.GenericConstructCount, 0, "generic references and plain signatures are not generic constructs")
+}
