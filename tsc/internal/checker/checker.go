@@ -894,7 +894,8 @@ type Checker struct {
 	ctx                                         context.Context
 	packagesMap                                 map[string]bool
 	activeMappers                               []*TypeMapper
-	activeTypeMappersCaches                     []map[CacheHashKey]*Type
+	activeTypeMappersCaches                     []map[CacheHashKey]*Type // Aliased instantiations per active mapper, keyed by type and alias
+	activeTypeMappersTypeIdCaches               []map[TypeId]*Type       // Alias-free instantiations per active mapper, keyed by type id
 	ambientModulesOnce                          sync.Once
 	ambientModules                              []*ast.Symbol
 	withinUnreachableCode                       bool
@@ -22470,10 +22471,20 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 	index := c.findActiveMapper(m)
 	var key CacheHashKey
 	var cache map[CacheHashKey]*Type
+	var typeCache map[TypeId]*Type
 	if index == -1 {
 		// The mapper is pushed for this instantiation only and popped again below,
 		// so nothing is cached for it.
 		c.pushActiveMapper(m)
+	} else if alias == nil {
+		// Without an alias the key is the type id alone.
+		typeCache = c.activeTypeMappersTypeIdCaches[index]
+		if typeCache == nil {
+			typeCache = make(map[TypeId]*Type, 1)
+			c.activeTypeMappersTypeIdCaches[index] = typeCache
+		} else if cachedType, ok := typeCache[t.id]; ok {
+			return cachedType
+		}
 	} else {
 		var b keyBuilder
 		b.writeType(t)
@@ -22493,6 +22504,8 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 	result := c.instantiateTypeWorker(t, m, alias)
 	if index == -1 {
 		c.popActiveMapper()
+	} else if alias == nil {
+		typeCache[t.id] = result
 	} else {
 		cache[key] = result
 	}
@@ -22502,25 +22515,32 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 
 func (c *Checker) pushActiveMapper(mapper *TypeMapper) {
 	c.activeMappers = append(c.activeMappers, mapper)
-
-	lastIndex := len(c.activeTypeMappersCaches)
-	if cap(c.activeTypeMappersCaches) > lastIndex {
-		// A slot within the capacity is nil or holds a map that popActiveMapper
-		// cleared; either is used as is.
-		c.activeTypeMappersCaches = c.activeTypeMappersCaches[:lastIndex+1]
-	} else {
-		c.activeTypeMappersCaches = append(c.activeTypeMappersCaches, nil)
-	}
+	c.activeTypeMappersCaches = pushMapperCache(c.activeTypeMappersCaches)
+	c.activeTypeMappersTypeIdCaches = pushMapperCache(c.activeTypeMappersTypeIdCaches)
 }
 
 func (c *Checker) popActiveMapper() {
 	c.activeMappers[len(c.activeMappers)-1] = nil
 	c.activeMappers = c.activeMappers[:len(c.activeMappers)-1]
+	c.activeTypeMappersCaches = popMapperCache(c.activeTypeMappersCaches)
+	c.activeTypeMappersTypeIdCaches = popMapperCache(c.activeTypeMappersTypeIdCaches)
+}
 
-	// Clear the map, but leave it in the list for later reuse.
-	lastIndex := len(c.activeTypeMappersCaches) - 1
-	clear(c.activeTypeMappersCaches[lastIndex])
-	c.activeTypeMappersCaches = c.activeTypeMappersCaches[:lastIndex]
+// pushMapperCache adds the cache slot of a newly active mapper: nil, or a map
+// that popMapperCache cleared and left within the capacity.
+func pushMapperCache[K comparable](caches []map[K]*Type) []map[K]*Type {
+	if n := len(caches); n < cap(caches) {
+		return caches[:n+1]
+	}
+	return append(caches, nil)
+}
+
+// popMapperCache drops the last cache slot, clearing its map but leaving it
+// within the capacity for reuse.
+func popMapperCache[K comparable](caches []map[K]*Type) []map[K]*Type {
+	last := len(caches) - 1
+	clear(caches[last])
+	return caches[:last]
 }
 
 func (c *Checker) findActiveMapper(mapper *TypeMapper) int {
@@ -22529,6 +22549,9 @@ func (c *Checker) findActiveMapper(mapper *TypeMapper) int {
 
 func (c *Checker) clearActiveMapperCaches() {
 	for _, cache := range c.activeTypeMappersCaches {
+		clear(cache)
+	}
+	for _, cache := range c.activeTypeMappersTypeIdCaches {
 		clear(cache)
 	}
 }
