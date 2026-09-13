@@ -3,6 +3,7 @@ package compiler
 import (
 	"context"
 	"math"
+	"os"
 	"slices"
 	"sort"
 	"sync"
@@ -31,6 +32,7 @@ type checkerPool struct {
 	checkers           []*checker.Checker
 	locks              []*sync.Mutex
 	fileAssociations   map[*ast.SourceFile]*checker.Checker
+	census             *declCensusRun // declaration census of the checkers (research instrumentation, TSGO_DECL_CENSUS); nil when off
 }
 
 var _ CheckerPool = (*checkerPool)(nil)
@@ -375,6 +377,9 @@ func (p *checkerPool) createCheckers() {
 		}
 
 		wg.RunAndWait()
+		// Attached after creation so that the global types every checker resolves in NewChecker
+		// have the same ids everywhere; the census relies on that to key them.
+		p.census = newDeclCensusRun(p.checkers)
 
 		associations := make([]int, len(p.program.files))
 		if checkerCount > 1 {
@@ -478,14 +483,17 @@ func (p *checkerPool) forEachCheckerGroupDo(ctx context.Context, files []*ast.So
 		wg.Queue(func() {
 			p.locks[checkerIdx].Lock()
 			defer p.locks[checkerIdx].Unlock()
+			began := p.census.begin()
 			for i, file := range files {
 				if checker := p.checkers[checkerIdx]; checker == p.fileAssociations[file] {
 					cb(checker, i, file)
 				}
 			}
+			p.census.end(checkerIdx, began)
 		})
 	}
 	wg.RunAndWait()
+	p.census.report(p.program.Options().ConfigFilePath, os.Stderr)
 }
 
 func noop() {}

@@ -369,6 +369,7 @@ func (c *Checker) checkTypeRelatedToEx(
 	r.relationCount = (16_000_000 - relation.size()) / 8
 	result := r.isRelatedToEx(source, target, RecursionFlagsBoth, errorNode != nil /*reportErrors*/, headMessage, IntersectionStateNone)
 	if r.overflow {
+		c.census.flag(DeclCensusFlagsGuard)
 		// Record this relation as having failed such that we don't attempt the overflowing operation again.
 		id, _ := getRelationKey(source, target, IntersectionStateNone, relation == c.identityRelation, false /*ignoreConstraints*/)
 		relation.set(id, RelationComparisonResultFailed|RelationComparisonResultComplexityOverflow)
@@ -1347,6 +1348,7 @@ func (c *Checker) getVariancesWorker(symbol *ast.Symbol, typeParameters []*Type)
 				popFn()
 			}()
 		}
+		frame := c.census.pushSymbol(DeclCensusKindVariances, symbol)
 		stackIndex := c.getVarianceStackIndex(symbol)
 		if stackIndex < 0 {
 			saveResolutionStart := c.resolutionStart
@@ -1430,6 +1432,9 @@ func (c *Checker) getVariancesWorker(symbol *ast.Symbol, typeParameters []*Type)
 				links.variances = []VarianceFlags{}
 			}
 		}
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitSymbol(DeclCensusKindVariances, symbol)
 	}
 	return links.variances
 }

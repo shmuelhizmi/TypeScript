@@ -905,7 +905,8 @@ type Checker struct {
 	typeToStringNodebuilder                     *NodeBuilder
 
 	mu     sync.Mutex
-	tracer *Tracer // Optional tracer for trace events and type recording (for --generateTrace)
+	tracer *Tracer     // Optional tracer for trace events and type recording (for --generateTrace)
+	census *DeclCensus // Optional declaration census (research instrumentation, TSGO_DECL_CENSUS)
 }
 
 func NewChecker(program Program, tracer *Tracer) (*Checker, *sync.Mutex) {
@@ -7723,6 +7724,7 @@ func (c *Checker) checkExpressionEx(node *ast.Node, checkMode CheckMode) *Type {
 	if tr := c.tracer; tr != nil {
 		defer tr.Push(tracing.PhaseCheck, "checkExpression", map[string]any{"kind": node.Kind, "pos": node.Pos(), "end": node.End(), "path": ast.GetSourceFileOfNode(node).FileName()}, false)()
 	}
+	c.census.sourceExpression(node)
 	saveCurrentNode := c.currentNode
 	c.currentNode = node
 	c.instantiationCount = 0
@@ -14199,6 +14201,7 @@ func (c *Checker) produceDeferredDiagnostics() {
 }
 
 func (c *Checker) addDiagnostic(diagnostic *ast.Diagnostic) *ast.Diagnostic {
+	c.census.flag(DeclCensusFlagsDiag)
 	// Discard diagnostics created while at the maximum number of recursive TypeToString invocations.
 	if c.serializationLevel < maxSerializationLevel {
 		return c.diagnostics.Add(diagnostic)
@@ -16844,7 +16847,11 @@ func (c *Checker) getNonMissingTypeOfSymbol(symbol *ast.Symbol) *Type {
 func (c *Checker) getTypeOfInstantiatedSymbol(symbol *ast.Symbol) *Type {
 	links := c.valueSymbolLinks.Get(symbol)
 	if links.resolvedType == nil {
+		frame := c.census.pushSymbol(DeclCensusKindInstantiatedType, symbol)
 		links.resolvedType = c.instantiateType(c.getTypeOfSymbol(links.target), links.mapper)
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitSymbol(DeclCensusKindInstantiatedType, symbol)
 	}
 	return links.resolvedType
 }
@@ -16860,6 +16867,7 @@ func (c *Checker) getWriteTypeOfInstantiatedSymbol(symbol *ast.Symbol) *Type {
 func (c *Checker) getTypeOfVariableOrParameterOrProperty(symbol *ast.Symbol) *Type {
 	links := c.valueSymbolLinks.Get(symbol)
 	if links.resolvedType == nil {
+		frame := c.census.pushSymbol(DeclCensusKindResolvedType, symbol)
 		t := c.getTypeOfVariableOrParameterOrPropertyWorker(symbol)
 		if t == nil {
 			panic("Unexpected nil type")
@@ -16872,8 +16880,10 @@ func (c *Checker) getTypeOfVariableOrParameterOrProperty(symbol *ast.Symbol) *Ty
 		if links.resolvedType == nil && !c.isParameterOfContextSensitiveSignature(symbol) {
 			links.resolvedType = t
 		}
+		c.census.pop(frame, false)
 		return t
 	}
+	c.census.hitSymbol(DeclCensusKindResolvedType, symbol)
 	return links.resolvedType
 }
 
@@ -17220,7 +17230,11 @@ func (c *Checker) getWidenedLiteralTypeForInitializer(declaration *ast.Node, t *
 func (c *Checker) getTypeOfFuncClassEnumModule(symbol *ast.Symbol) *Type {
 	links := c.valueSymbolLinks.Get(symbol)
 	if links.resolvedType == nil {
+		frame := c.census.pushSymbol(DeclCensusKindResolvedType, symbol)
 		links.resolvedType = c.getTypeOfFuncClassEnumModuleWorker(symbol)
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitSymbol(DeclCensusKindResolvedType, symbol)
 	}
 	return links.resolvedType
 }
@@ -17635,6 +17649,7 @@ func (c *Checker) getConstraintOfDistributiveConditionalType(t *Type) *Type {
 func (c *Checker) getDeclaredTypeOfClassOrInterface(symbol *ast.Symbol) *Type {
 	links := c.declaredTypeLinks.Get(symbol)
 	if links.declaredType == nil {
+		frame := c.census.pushSymbol(DeclCensusKindDeclaredType, symbol)
 		kind := core.IfElse(symbol.Flags&ast.SymbolFlagsClass != 0, ObjectFlagsClass, ObjectFlagsInterface)
 		t := c.newObjectType(kind, symbol)
 		links.declaredType = t
@@ -17658,6 +17673,9 @@ func (c *Checker) getDeclaredTypeOfClassOrInterface(symbol *ast.Symbol) *Type {
 			d.instantiations[getTypeListKey(d.resolvedTypeArguments)] = t
 			d.target = t
 		}
+		c.census.pop(frame, typeParameters != nil)
+	} else {
+		c.census.hitSymbol(DeclCensusKindDeclaredType, symbol)
 	}
 	return links.declaredType
 }
@@ -19095,6 +19113,7 @@ func (c *Checker) pushTypeResolution(target TypeSystemEntity, propertyName TypeS
 	resolutionCycleStartIndex := c.findResolutionCycleStartIndex(target, propertyName)
 	if resolutionCycleStartIndex >= 0 {
 		// A cycle was found
+		c.census.flag(DeclCensusFlagsCycle)
 		for i := resolutionCycleStartIndex; i < len(c.typeResolutions); i++ {
 			c.typeResolutions[i].result = false
 		}
@@ -19397,6 +19416,7 @@ func (c *Checker) isApplicableIndexType(source *Type, target *Type) bool {
 
 func (c *Checker) resolveStructuredTypeMembers(t *Type) *StructuredType {
 	if t.objectFlags&ObjectFlagsMembersResolved == 0 {
+		frame := c.census.pushMembers(t)
 		switch {
 		case t.flags&TypeFlagsObject != 0:
 			switch {
@@ -19420,6 +19440,9 @@ func (c *Checker) resolveStructuredTypeMembers(t *Type) *StructuredType {
 		default:
 			panic("Unhandled case in resolveStructuredTypeMembers")
 		}
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitMembers(t)
 	}
 	return t.AsStructuredType()
 }
@@ -19520,6 +19543,7 @@ func (c *Checker) getBaseTypes(t *Type) []*Type {
 		if !c.pushTypeResolution(t, TypeSystemPropertyNameResolvedBaseTypes) {
 			return data.resolvedBaseTypes
 		}
+		frame := c.census.pushType(DeclCensusKindBaseTypes, t)
 		switch {
 		case t.objectFlags&ObjectFlagsTuple != 0:
 			data.resolvedBaseTypes = []*Type{c.getTupleBaseType(t)}
@@ -19546,6 +19570,9 @@ func (c *Checker) getBaseTypes(t *Type) []*Type {
 		// See https://github.com/microsoft/TypeScript/issues/16861 for an example.
 		t.objectFlags &^= ObjectFlagsMembersResolved
 		data.baseTypesResolved = true
+		c.census.pop(frame, len(data.TypeParameters()) != 0)
+	} else {
+		c.census.hitType(DeclCensusKindBaseTypes, t)
 	}
 	return data.resolvedBaseTypes
 }
@@ -19959,12 +19986,16 @@ func (c *Checker) addInheritedMembers(symbols ast.SymbolTable, baseSymbols []*as
 func (c *Checker) resolveDeclaredMembers(t *Type) *InterfaceType {
 	d := t.AsInterfaceType()
 	if !d.declaredMembersResolved {
+		frame := c.census.pushType(DeclCensusKindDeclaredMembers, t)
 		members := c.getMembersOfSymbol(t.symbol)
 		d.declaredMembersResolved = true
 		d.declaredMembers = members
 		d.declaredCallSignatures = c.getSignaturesOfSymbol(d.declaredMembers[ast.InternalSymbolNameCall])
 		d.declaredConstructSignatures = c.getSignaturesOfSymbol(d.declaredMembers[ast.InternalSymbolNameNew])
 		d.declaredIndexInfos = c.getIndexInfosOfSymbol(t.symbol)
+		c.census.pop(frame, len(d.TypeParameters()) != 0)
+	} else {
+		c.census.hitType(DeclCensusKindDeclaredMembers, t)
 	}
 	return d
 }
@@ -20183,8 +20214,10 @@ func (c *Checker) getSignaturesOfSymbol(symbol *ast.Symbol) []*Signature {
 func (c *Checker) getSignatureFromDeclaration(declaration *ast.Node) *Signature {
 	links := c.signatureLinks.Get(declaration)
 	if links.resolvedSignature != nil {
+		c.census.hitSignatureDeclaration(declaration)
 		return links.resolvedSignature
 	}
+	frame := c.census.pushSignatureDeclaration(declaration)
 	var parameters []*ast.Symbol
 	var flags SignatureFlags
 	var thisParameter *ast.Symbol
@@ -20253,6 +20286,7 @@ func (c *Checker) getSignatureFromDeclaration(declaration *ast.Node) *Signature 
 		flags |= SignatureFlagsAbstract
 	}
 	links.resolvedSignature = c.newSignature(flags, declaration, typeParameters, thisParameter, parameters, nil /*resolvedReturnType*/, nil /*resolvedTypePredicate*/, minArgumentCount)
+	c.census.pop(frame, len(typeParameters) != 0)
 	return links.resolvedSignature
 }
 
@@ -20347,11 +20381,13 @@ func isLateBindableAST(node *ast.Node) bool {
 
 func (c *Checker) getReturnTypeOfSignature(sig *Signature) *Type {
 	if sig.resolvedReturnType != nil {
+		c.census.hitReturnType(sig)
 		return sig.resolvedReturnType
 	}
 	if !c.pushTypeResolution(sig, TypeSystemPropertyNameResolvedReturnType) {
 		return c.errorType
 	}
+	frame := c.census.pushReturnType(sig)
 	var t *Type
 	switch {
 	case sig.target != nil:
@@ -20392,6 +20428,7 @@ func (c *Checker) getReturnTypeOfSignature(sig *Signature) *Type {
 	if sig.resolvedReturnType == nil {
 		sig.resolvedReturnType = t
 	}
+	c.census.pop(frame, len(sig.typeParameters) != 0 || sig.target != nil || sig.composite != nil)
 	return sig.resolvedReturnType
 }
 
@@ -22550,6 +22587,7 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 		if tr := c.tracer; tr != nil {
 			tr.Instant(tracing.PhaseCheckTypes, "instantiateType_DepthLimit", map[string]any{"typeId": t.id, "instantiationDepth": c.instantiationDepth, "instantiationCount": c.instantiationCount})
 		}
+		c.census.flag(DeclCensusFlagsGuard)
 		c.error(c.currentNode, diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite)
 		return c.errorType
 	}
@@ -22588,6 +22626,7 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 	c.TotalInstantiationCount++
 	c.instantiationCount++
 	c.instantiationDepth++
+	c.census.instantiation(c.instantiationDepth)
 	result := c.instantiateTypeWorker(t, m, alias)
 	if index == -1 {
 		c.popActiveMapper()
@@ -22835,6 +22874,7 @@ func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *Type
 	}
 	result := data.instantiations[key]
 	if result == nil {
+		frame := c.census.pushObjectInstantiation(target, typeArguments, newAlias, t.objectFlags&ObjectFlagsSingleSignatureType != 0)
 		newMapper := newTypeMapper(typeParameters, typeArguments)
 		if target.objectFlags&ObjectFlagsSingleSignatureType != 0 && m != nil {
 			newMapper = c.combineTypeMappers(newMapper, m)
@@ -22862,6 +22902,9 @@ func (c *Checker) getObjectTypeInstantiation(t *Type, m *TypeMapper, alias *Type
 				}
 			}
 		}
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitObjectInstantiation(target, typeArguments, newAlias, t.objectFlags&ObjectFlagsSingleSignatureType != 0)
 	}
 	return result
 }
@@ -22971,6 +23014,7 @@ func (c *Checker) getConditionalTypeInstantiation(t *Type, mapper *TypeMapper, f
 		}
 		result := root.instantiations[key]
 		if result == nil {
+			frame := c.census.pushConditionalInstantiation(root, singleArgument, typeArguments, alias, forConstraint)
 			var newMapper *TypeMapper
 			if single {
 				newMapper = newSimpleTypeMapper(root.outerTypeParameters[0], singleArgument)
@@ -22993,6 +23037,9 @@ func (c *Checker) getConditionalTypeInstantiation(t *Type, mapper *TypeMapper, f
 				result = c.getConditionalType(root, newMapper, forConstraint, alias)
 			}
 			root.instantiations[key] = result
+			c.census.pop(frame, false)
+		} else {
+			c.census.hitConditionalInstantiation(root, singleArgument, typeArguments, alias, forConstraint)
 		}
 		return result
 	}
@@ -24139,9 +24186,13 @@ func (c *Checker) getTypeAliasInstantiation(symbol *ast.Symbol, typeArguments []
 	key := getTypeAliasInstantiationKey(typeArguments, alias)
 	instantiation := links.instantiations[key]
 	if instantiation == nil {
+		frame := c.census.pushAliasInstantiation(symbol, typeArguments, alias)
 		mapper := newTypeMapper(typeParameters, c.fillMissingTypeArguments(typeArguments, typeParameters, c.getMinTypeArgumentCount(typeParameters), ast.IsInJSFile(symbol.ValueDeclaration)))
 		instantiation = c.instantiateTypeWithAlias(t, mapper, alias)
 		links.instantiations[key] = instantiation
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitAliasInstantiation(symbol, typeArguments, alias)
 	}
 	return instantiation
 }
@@ -24335,6 +24386,7 @@ func (c *Checker) getDeclaredTypeOfTypeAlias(symbol *ast.Symbol) *Type {
 		if !c.pushTypeResolution(symbol, TypeSystemPropertyNameDeclaredType) {
 			return c.errorType
 		}
+		frame := c.census.pushSymbol(DeclCensusKindDeclaredType, symbol)
 		declaration := core.Find(symbol.Declarations, ast.IsTypeOrJSTypeAliasDeclaration)
 		typeNode := declaration.Type()
 		t := c.getTypeFromTypeNode(typeNode)
@@ -24361,6 +24413,9 @@ func (c *Checker) getDeclaredTypeOfTypeAlias(symbol *ast.Symbol) *Type {
 		if links.declaredType == nil {
 			links.declaredType = t
 		}
+		c.census.pop(frame, len(links.typeParameters) != 0)
+	} else {
+		c.census.hitSymbol(DeclCensusKindDeclaredType, symbol)
 	}
 	return links.declaredType
 }
@@ -24368,6 +24423,7 @@ func (c *Checker) getDeclaredTypeOfTypeAlias(symbol *ast.Symbol) *Type {
 func (c *Checker) getDeclaredTypeOfEnum(symbol *ast.Symbol) *Type {
 	links := c.declaredTypeLinks.Get(symbol)
 	if !(links.declaredType != nil) {
+		frame := c.census.pushSymbol(DeclCensusKindDeclaredType, symbol)
 		var memberTypeList []*Type
 		for _, declaration := range symbol.Declarations {
 			if declaration.Kind == ast.KindEnumDeclaration {
@@ -24398,6 +24454,9 @@ func (c *Checker) getDeclaredTypeOfEnum(symbol *ast.Symbol) *Type {
 			enumType.symbol = symbol
 		}
 		links.declaredType = enumType
+		c.census.pop(frame, false)
+	} else {
+		c.census.hitSymbol(DeclCensusKindDeclaredType, symbol)
 	}
 	return links.declaredType
 }
@@ -24801,6 +24860,7 @@ func (c *Checker) getConditionalType(root *ConditionalRoot, mapper *TypeMapper, 
 	// cases we increment the tail recursion counter and stop after 1000 iterations.
 	for {
 		if tailCount == 1000 {
+			c.census.flag(DeclCensusFlagsGuard)
 			c.error(c.currentNode, diagnostics.Type_instantiation_is_excessively_deep_and_possibly_infinite)
 			return c.errorType
 		}
