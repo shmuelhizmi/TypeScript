@@ -318,6 +318,7 @@ func newCheckerPoolWithTracing(program *Program, tr *tracing.Tracing) *checkerPo
 		locks:    make([]*sync.Mutex, checkerCount),
 		tracing:  tr,
 	}
+	pool.reportProgramStats()
 
 	return pool
 }
