@@ -303,7 +303,7 @@ func newCheckerPool(program *Program) *checkerPool {
 }
 
 func newCheckerPoolWithTracing(program *Program, tr *tracing.Tracing) *checkerPool {
-	checkerCount := 4
+	checkerCount := defaultCheckerCount(program)
 	if program.SingleThreaded() {
 		checkerCount = 1
 	} else if c := program.Options().Checkers; c != nil {
@@ -320,6 +320,67 @@ func newCheckerPoolWithTracing(program *Program, tr *tracing.Tracing) *checkerPo
 	}
 
 	return pool
+}
+
+const (
+	baseCheckerCount            = 4
+	sourceDominatedCheckerCount = 8
+	// sourceDominatedGenericPressure is the largest number of generic constructs (per thousand units of source
+	// association weight) that the declaration files reachable from the source files may hold for a program to count
+	// as source-dominated (see defaultCheckerCount). Measured programs: vscode 0.4, the TypeScript compiler 0,
+	// fluentui 2.1 (eight checkers win 10-17% on each); opencode 50-80 and the Effect packages 100-4000 (eight
+	// checkers lose 5-15%).
+	sourceDominatedGenericPressure = 10
+)
+
+// defaultCheckerCount chooses the checker count when --checkers is not given. Every checker instantiates the
+// library types its files touch for itself, so the cost of a checker is the generic surface of the declaration
+// files its source files reach, while the benefit of more checkers grows with the amount of source to check. Programs
+// whose reachable declaration files hold few generic constructs per unit of source weight are source-dominated: their
+// check phase scales with the checker count until the cores are busy, and they get sourceDominatedCheckerCount
+// checkers. Programs over large generic libraries (typically applications over Effect-style libraries) repeat that
+// library work in every checker and keep the four of the original design. The choice depends on the program only,
+// never on the machine, because the checker count influences type creation order and with it the order of union
+// members in emitted declarations: the same program must produce the same output everywhere.
+func defaultCheckerCount(program *Program) int {
+	files := program.files
+	sourceWeight := 0
+	reached := make([]bool, len(files))
+	queue := make([]int, 0, len(files))
+	for i, file := range files {
+		if !file.IsDeclarationFile {
+			sourceWeight += getCheckerAssociationBaseWeight(file.NodeCount, len(file.Text()))
+			reached[i] = true
+			queue = append(queue, i)
+		}
+	}
+	imports := program.importEdges()
+	reachableGenericConstructs := 0
+	for len(queue) > 0 {
+		index := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+		for _, imported := range imports[index] {
+			if reached[imported] {
+				continue
+			}
+			reached[imported] = true
+			queue = append(queue, imported)
+			if files[imported].IsDeclarationFile {
+				reachableGenericConstructs += files[imported].GenericConstructCount
+			}
+		}
+	}
+	return checkerCountForGenericPressure(reachableGenericConstructs, sourceWeight)
+}
+
+// checkerCountForGenericPressure is the decision behind defaultCheckerCount: eight checkers when the declaration
+// files reachable from the source files hold at most sourceDominatedGenericPressure generic constructs per thousand
+// units of source weight, four otherwise.
+func checkerCountForGenericPressure(reachableGenericConstructs int, sourceWeight int) int {
+	if reachableGenericConstructs*1000 <= sourceDominatedGenericPressure*sourceWeight {
+		return sourceDominatedCheckerCount
+	}
+	return baseCheckerCount
 }
 
 // GetChecker implements CheckerPool. When file is non-nil, returns the checker
@@ -419,22 +480,9 @@ func (p *checkerPool) createCheckers() {
 // index. A directed import from A to B makes both files adjacent because either
 // file can benefit from sharing checker caches with the other.
 func (p *checkerPool) getImportAdjacency() [][]int {
-	fileIndices := make(map[*ast.SourceFile]int, len(p.program.files))
-	for i, file := range p.program.files {
-		fileIndices[file] = i
-	}
 	adjacentFiles := make([][]int, len(p.program.files))
-	for fileIndex, file := range p.program.files {
-		resolvedModules := p.program.resolvedModules[file.Path()]
-		for _, resolved := range resolvedModules {
-			if resolved == nil || !resolved.IsResolved() {
-				continue
-			}
-			importedFile := p.program.GetSourceFileForResolvedModule(resolved.ResolvedFileName)
-			importedIndex, ok := fileIndices[importedFile]
-			if !ok || importedIndex == fileIndex {
-				continue
-			}
+	for fileIndex, imports := range p.program.importEdges() {
+		for _, importedIndex := range imports {
 			adjacentFiles[fileIndex] = append(adjacentFiles[fileIndex], importedIndex)
 			adjacentFiles[importedIndex] = append(adjacentFiles[importedIndex], fileIndex)
 		}
