@@ -303,7 +303,7 @@ func newCheckerPool(program *Program) *checkerPool {
 }
 
 func newCheckerPoolWithTracing(program *Program, tr *tracing.Tracing) *checkerPool {
-	checkerCount := 4
+	checkerCount := defaultCheckerCount(program.files)
 	if program.SingleThreaded() {
 		checkerCount = 1
 	} else if c := program.Options().Checkers; c != nil {
@@ -320,6 +320,37 @@ func newCheckerPoolWithTracing(program *Program, tr *tracing.Tracing) *checkerPo
 	}
 
 	return pool
+}
+
+const (
+	baseCheckerCount            = 4
+	sourceDominatedCheckerCount = 8
+	// sourceDominatedDeclarationShare is the largest share of the association base weight that declaration files
+	// may hold for a program to count as source-dominated (see defaultCheckerCount).
+	sourceDominatedDeclarationShare = 0.25
+)
+
+// defaultCheckerCount chooses the checker count when --checkers is not given. Every checker resolves the
+// declaration types its files touch for itself, so on programs whose work is dominated by declaration files
+// (typically small applications over large libraries) more checkers repeat that work and win nothing; on programs
+// dominated by their own source files the check phase scales with the checker count until the cores are busy.
+// Source-dominated programs therefore get sourceDominatedCheckerCount checkers; everything else keeps the four of
+// the original design. The choice depends on the program only, never on the machine, because the checker count
+// influences type creation order and with it the order of union members in emitted declarations: the same
+// program must produce the same output everywhere.
+func defaultCheckerCount(files []*ast.SourceFile) int {
+	totalWeight, declarationWeight := 0, 0
+	for _, file := range files {
+		weight := getCheckerAssociationBaseWeight(file.NodeCount, len(file.Text()))
+		totalWeight += weight
+		if file.IsDeclarationFile {
+			declarationWeight += weight
+		}
+	}
+	if float64(declarationWeight) <= sourceDominatedDeclarationShare*float64(totalWeight) {
+		return sourceDominatedCheckerCount
+	}
+	return baseCheckerCount
 }
 
 // GetChecker implements CheckerPool. When file is non-nil, returns the checker
