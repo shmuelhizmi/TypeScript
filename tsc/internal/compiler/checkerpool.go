@@ -3,6 +3,7 @@ package compiler
 import (
 	"context"
 	"math"
+	"os"
 	"slices"
 	"sort"
 	"sync"
@@ -31,6 +32,7 @@ type checkerPool struct {
 	checkers           []*checker.Checker
 	locks              []*sync.Mutex
 	fileAssociations   map[*ast.SourceFile]*checker.Checker
+	fileWeights        map[*ast.SourceFile]int // association weights, kept for the checker timeline only
 }
 
 var _ CheckerPool = (*checkerPool)(nil)
@@ -407,6 +409,12 @@ func (p *checkerPool) createCheckers() {
 			adjacentFiles := p.getImportAdjacency()
 			fileOrder := getCheckerAssociationOrder(fileWeights, isDeclarationFile, policy.prioritizeSourceFiles)
 			associations = getCheckerAssociationsInOrder(fileWeights, adjacentFiles, fileOrder, checkerCount, policy.balancePenaltyMultiplier)
+			if checkerTimelineEnabled() {
+				p.fileWeights = make(map[*ast.SourceFile]int, len(p.program.files))
+				for i, file := range p.program.files {
+					p.fileWeights[file] = fileWeights[i]
+				}
+			}
 		}
 		p.fileAssociations = make(map[*ast.SourceFile]*checker.Checker, len(p.program.files))
 		for i, file := range p.program.files {
@@ -473,19 +481,25 @@ func (p *checkerPool) forEachCheckerGroupDo(ctx context.Context, files []*ast.So
 	p.createCheckers()
 
 	checkerCount := len(p.checkers)
+	timeline := newCheckerTimeline(p.program.Options().ConfigFilePath, checkerCount, p.fileWeights)
 	wg := core.NewWorkGroup(singleThreaded)
 	for checkerIdx := range checkerCount {
 		wg.Queue(func() {
 			p.locks[checkerIdx].Lock()
 			defer p.locks[checkerIdx].Unlock()
+			timeline.start(checkerIdx)
 			for i, file := range files {
 				if checker := p.checkers[checkerIdx]; checker == p.fileAssociations[file] {
+					began := timeline.begin()
 					cb(checker, i, file)
+					timeline.end(checkerIdx, file, began)
 				}
 			}
+			timeline.finish(checkerIdx)
 		})
 	}
 	wg.RunAndWait()
+	timeline.report(os.Stderr)
 }
 
 func noop() {}
