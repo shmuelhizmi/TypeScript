@@ -33,6 +33,7 @@ type checkerPool struct {
 	locks              []*sync.Mutex
 	fileAssociations   map[*ast.SourceFile]*checker.Checker
 	fileWeights        map[*ast.SourceFile]int // association weights, kept for the checker timeline only
+	weightSummary      checkerTimelineWeights  // totals behind the association policy, kept for the checker timeline only
 }
 
 var _ CheckerPool = (*checkerPool)(nil)
@@ -470,6 +471,10 @@ func (p *checkerPool) createCheckers() {
 				for i, file := range p.program.files {
 					p.fileWeights[file] = fileWeights[i]
 				}
+				p.weightSummary = checkerTimelineWeights{TotalBase: totalBaseWeight, DeclarationBase: declarationBaseWeight,
+					DeclarationFiles:           core.CountWhere(isDeclarationFile, func(d bool) bool { return d }),
+					SourceFileWeightMultiplier: policy.sourceFileWeightMultiplier, BalancePenaltyMultiplier: policy.balancePenaltyMultiplier,
+					PrioritizeSourceFiles: policy.prioritizeSourceFiles}
 			}
 		}
 		p.fileAssociations = make(map[*ast.SourceFile]*checker.Checker, len(p.program.files))
@@ -524,7 +529,7 @@ func (p *checkerPool) forEachCheckerGroupDo(ctx context.Context, files []*ast.So
 	p.createCheckers()
 
 	checkerCount := len(p.checkers)
-	timeline := newCheckerTimeline(p.program.Options().ConfigFilePath, checkerCount, p.fileWeights)
+	timeline := newCheckerTimeline(p.program.Options().ConfigFilePath, checkerCount, p.fileWeights, p.weightSummary)
 	wg := core.NewWorkGroup(singleThreaded)
 	for checkerIdx := range checkerCount {
 		wg.Queue(func() {

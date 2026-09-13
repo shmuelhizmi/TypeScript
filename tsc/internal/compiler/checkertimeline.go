@@ -20,7 +20,18 @@ type checkerTimeline struct {
 	program  string
 	started  time.Time
 	weights  map[*ast.SourceFile]int
+	summary  checkerTimelineWeights
 	checkers []checkerTimelineChecker
+}
+
+// checkerTimelineWeights are the totals the association policy was derived from.
+type checkerTimelineWeights struct {
+	TotalBase                  int  `json:"totalBaseWeight"`
+	DeclarationBase            int  `json:"declarationBaseWeight"`
+	DeclarationFiles           int  `json:"declarationFiles"`
+	SourceFileWeightMultiplier int  `json:"sourceFileWeightMultiplier"`
+	BalancePenaltyMultiplier   int  `json:"balancePenaltyMultiplier"`
+	PrioritizeSourceFiles      bool `json:"prioritizeSourceFiles"`
 }
 
 // checkerTimelineChecker is written by the goroutine of its checker only.
@@ -48,6 +59,7 @@ type checkerTimelineReport struct {
 	PhaseMs      float64                  `json:"phaseMs"`
 	BusyMs       float64                  `json:"busyMs"`
 	IdealMs      float64                  `json:"idealMs"`
+	Weights      checkerTimelineWeights   `json:"weights"`
 	Checkers     []checkerTimelineChecker `json:"checkers"`
 	SlowestFiles []checkerTimelineFile    `json:"slowestFiles"`
 }
@@ -56,11 +68,11 @@ func checkerTimelineEnabled() bool {
 	return os.Getenv("TSGO_CHECKER_TIMELINE") != ""
 }
 
-func newCheckerTimeline(program string, checkerCount int, weights map[*ast.SourceFile]int) *checkerTimeline {
+func newCheckerTimeline(program string, checkerCount int, weights map[*ast.SourceFile]int, summary checkerTimelineWeights) *checkerTimeline {
 	if !checkerTimelineEnabled() {
 		return nil
 	}
-	t := &checkerTimeline{program: program, started: time.Now(), weights: weights, checkers: make([]checkerTimelineChecker, checkerCount)}
+	t := &checkerTimeline{program: program, started: time.Now(), weights: weights, summary: summary, checkers: make([]checkerTimelineChecker, checkerCount)}
 	for i := range t.checkers {
 		t.checkers[i].Checker = i
 	}
@@ -109,7 +121,7 @@ func (t *checkerTimeline) report(w io.Writer) {
 	if t == nil {
 		return
 	}
-	report := checkerTimelineReport{Program: t.program, Checkers: t.checkers}
+	report := checkerTimelineReport{Program: t.program, Weights: t.summary, Checkers: t.checkers}
 	var files []checkerTimelineFile
 	for _, c := range t.checkers {
 		report.PhaseMs = max(report.PhaseMs, c.EndMs)
