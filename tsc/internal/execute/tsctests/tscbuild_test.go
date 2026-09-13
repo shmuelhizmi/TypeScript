@@ -4788,3 +4788,124 @@ func TestBuildProjectReferenceRedirectWithMultipleSubProjects(t *testing.T) {
 		test.run(t, "projectReferenceRedirect")
 	}
 }
+
+func TestBuildWorkspaceSourcesReachedThroughNodeModules(t *testing.T) {
+	t.Parallel()
+	// app depends on lib through a workspace symlink in node_modules, without a project reference,
+	// and lib's package.json exports its TypeScript sources. app's program therefore contains lib's
+	// sources as files found in node_modules.
+	const libIndex = "/home/src/workspaces/solution/packages/lib/src/index.ts"
+	const appIndex = "/home/src/workspaces/solution/packages/app/src/index.ts"
+	packageTsconfig := stringtestutil.Dedent(`
+		{
+			"compilerOptions": {
+				"composite": true,
+				"module": "ESNext",
+				"moduleResolution": "Bundler",
+				"target": "ES2022",
+				"outDir": "./out",
+				"rootDir": "./src",
+				"strict": true
+			},
+			"include": ["src/**/*"]
+		}`)
+	files := func() FileMap {
+		return FileMap{
+			"/home/src/workspaces/solution/package.json": stringtestutil.Dedent(`
+				{
+					"name": "solution",
+					"private": true,
+					"workspaces": ["packages/*"]
+				}`),
+			"/home/src/workspaces/solution/tsconfig.json": stringtestutil.Dedent(`
+				{
+					"files": [],
+					"references": [
+						{ "path": "packages/lib" },
+						{ "path": "packages/app" }
+					]
+				}`),
+			"/home/src/workspaces/solution/packages/lib/package.json": stringtestutil.Dedent(`
+				{
+					"name": "lib",
+					"version": "1.0.0",
+					"type": "module",
+					"exports": {
+						".": "./src/index.ts"
+					}
+				}`),
+			"/home/src/workspaces/solution/packages/lib/tsconfig.json": packageTsconfig,
+			libIndex: stringtestutil.Dedent(`
+				export function greet(name: string): string {
+					const count: number = name;
+					return name;
+				}`),
+			"/home/src/workspaces/solution/packages/app/package.json": stringtestutil.Dedent(`
+				{
+					"name": "app",
+					"version": "1.0.0",
+					"type": "module",
+					"dependencies": {
+						"lib": "workspace:*"
+					}
+				}`),
+			"/home/src/workspaces/solution/packages/app/tsconfig.json": packageTsconfig,
+			appIndex: stringtestutil.Dedent(`
+				import { greet } from "lib";
+
+				export const message: string = greet("world");`),
+			"/home/src/workspaces/solution/node_modules/lib": vfstest.Symlink("/home/src/workspaces/solution/packages/lib"),
+		}
+	}
+	fixLib := &tscEdit{
+		caption: "fix the error in lib",
+		edit: func(sys *TestSys) {
+			sys.replaceFileText(libIndex, "const count: number = name;", "const count: string = name;")
+		},
+	}
+	testCases := []*tscInput{
+		{
+			// lib's error is reported once, by lib; app does not check lib's sources again.
+			subScenario:     "owning project is part of the build",
+			files:           files(),
+			cwd:             "/home/src/workspaces/solution",
+			commandLineArgs: []string{"--b", "--verbose"},
+			edits: []*tscEdit{
+				noChange,
+				fixLib,
+				{
+					caption: "introduce an error in app",
+					edit: func(sys *TestSys) {
+						sys.replaceFileText(appIndex, "message: string", "message: number")
+					},
+				},
+				{
+					caption: "reintroduce the error in lib",
+					edit: func(sys *TestSys) {
+						sys.replaceFileText(libIndex, "const count: string = name;", "const count: number = name;")
+					},
+				},
+			},
+		},
+		{
+			// Nothing else checks lib's sources in this build, so app still reports their errors.
+			subScenario:     "owning project is not part of the build",
+			files:           files(),
+			cwd:             "/home/src/workspaces/solution",
+			commandLineArgs: []string{"--b", "packages/app", "--verbose"},
+			edits:           []*tscEdit{noChange, fixLib},
+		},
+		{
+			// A project can be skipped because of upstream errors, so every project checks all of its files.
+			subScenario:     "with stopBuildOnErrors",
+			files:           files(),
+			cwd:             "/home/src/workspaces/solution",
+			commandLineArgs: []string{"--b", "--verbose", "--stopBuildOnErrors"},
+			edits:           []*tscEdit{noChange, fixLib},
+		},
+	}
+
+	for _, test := range testCases {
+		test.run(t, "workspaceSourcesReachedThroughNodeModules")
+	}
+}

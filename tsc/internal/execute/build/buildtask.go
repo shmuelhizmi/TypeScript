@@ -255,6 +255,9 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 	program := compiler.NewProgram(compiler.ProgramOptions{
 		Config: t.resolved,
 		Host:   compilerHost,
+		IsCheckedByAnotherProject: func(file tspath.Path) bool {
+			return orchestrator.rootFileOwners.checkedByAnotherProject(path, file)
+		},
 	})
 	compileTimes.ParseTime = orchestrator.opts.Sys.Now().Sub(parseStart)
 	changesComputeStart := orchestrator.opts.Sys.Now()
