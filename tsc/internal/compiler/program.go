@@ -46,6 +46,11 @@ type ProgramOptions struct {
 	// SkipModuleResolution avoids all module and type reference resolution while
 	// still collecting import metadata needed for emit.
 	SkipModuleResolution bool
+	// IsCheckedByAnotherProject reports whether another project of the same build lists the
+	// file as a root file and type checks it in this invocation. When set, TypeScript source
+	// files that this program reached only through node_modules and that it accepts are not
+	// type checked here; their diagnostics are reported by the owning project.
+	IsCheckedByAnotherProject func(path tspath.Path) bool
 }
 
 func (p *ProgramOptions) canUseProjectReferenceSource() bool {
@@ -825,7 +830,20 @@ func (p *Program) SkipTypeChecking(sourceFile *ast.SourceFile, ignoreNoCheck boo
 		p.Options().SkipLibCheck.IsTrue() && sourceFile.IsDeclarationFile ||
 		p.Options().SkipDefaultLibCheck.IsTrue() && p.IsSourceFileDefaultLibrary(sourceFile.Path()) ||
 		p.IsSourceFromProjectReference(sourceFile.Path()) ||
+		p.isCheckedByAnotherProject(sourceFile) ||
 		!p.canIncludeBindAndCheckDiagnostics(sourceFile)
+}
+
+// isCheckedByAnotherProject reports whether sourceFile is a TypeScript source file that this
+// program reached only through node_modules and that another project of the same build type
+// checks as one of its root files. Such files are typically workspace packages resolved through
+// symlinks; checking them again here would repeat the owning project's work and diagnostics.
+func (p *Program) isCheckedByAnotherProject(sourceFile *ast.SourceFile) bool {
+	return p.opts.IsCheckedByAnotherProject != nil &&
+		!sourceFile.IsDeclarationFile &&
+		(sourceFile.ScriptKind == core.ScriptKindTS || sourceFile.ScriptKind == core.ScriptKindTSX) &&
+		p.IsSourceFileFromExternalLibrary(sourceFile) &&
+		p.opts.IsCheckedByAnotherProject(sourceFile.Path())
 }
 
 func (p *Program) canIncludeBindAndCheckDiagnostics(sourceFile *ast.SourceFile) bool {
