@@ -22459,16 +22459,23 @@ func (c *Checker) instantiateTypeWithAlias(t *Type, m *TypeMapper, alias *TypeAl
 		return c.errorType
 	}
 	index := c.findActiveMapper(m)
+	var key CacheHashKey
+	var cache map[CacheHashKey]*Type
 	if index == -1 {
+		// A newly active mapper has an empty cache and its result is not retained.
 		c.pushActiveMapper(m)
-	}
-	var b keyBuilder
-	b.writeType(t)
-	b.writeAlias(alias)
-	key := b.hash()
-	cache := c.activeTypeMappersCaches[core.IfElse(index != -1, index, len(c.activeTypeMappersCaches)-1)]
-	if cachedType, ok := cache[key]; ok {
-		return cachedType
+	} else {
+		var b keyBuilder
+		b.writeType(t)
+		b.writeAlias(alias)
+		key = b.hash()
+		cache = c.activeTypeMappersCaches[index]
+		if cache == nil {
+			cache = make(map[CacheHashKey]*Type, 1)
+			c.activeTypeMappersCaches[index] = cache
+		} else if cachedType, ok := cache[key]; ok {
+			return cachedType
+		}
 	}
 	c.TotalInstantiationCount++
 	c.instantiationCount++
@@ -22490,11 +22497,8 @@ func (c *Checker) pushActiveMapper(mapper *TypeMapper) {
 	if cap(c.activeTypeMappersCaches) > lastIndex {
 		// The cap may contain an empty map from popActiveMapper; reuse it.
 		c.activeTypeMappersCaches = c.activeTypeMappersCaches[:lastIndex+1]
-		if c.activeTypeMappersCaches[lastIndex] == nil {
-			c.activeTypeMappersCaches[lastIndex] = make(map[CacheHashKey]*Type, 1)
-		}
 	} else {
-		c.activeTypeMappersCaches = append(c.activeTypeMappersCaches, make(map[CacheHashKey]*Type, 1))
+		c.activeTypeMappersCaches = append(c.activeTypeMappersCaches, nil)
 	}
 }
 
