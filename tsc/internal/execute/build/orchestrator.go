@@ -669,9 +669,14 @@ func (o *Orchestrator) buildOrClean() tsc.CommandLineResult {
 	var buildResult orchestratorResult
 	if len(o.errors) == 0 {
 		buildResult.statistics.Projects = len(o.Order())
-		o.rangeTask(func(path tspath.Path, task *BuildTask) {
-			o.buildOrCleanProject(task, path, &buildResult)
-		})
+		if o.opts.Command.BuildOptions.Clean.IsTrue() {
+			o.rangeTask(func(path tspath.Path, task *BuildTask) {
+				o.buildOrCleanProject(task, path)
+				task.report(o, path, &buildResult)
+			})
+		} else {
+			o.buildReadyProjects(&buildResult)
+		}
 	} else {
 		// Circularity errors prevent any project from being built
 		buildResult.result.Status = tsc.ExitStatusProjectReferenceCycle_OutputsSkipped
@@ -721,7 +726,39 @@ func (o *Orchestrator) rangeTask(f func(path tspath.Path, task *BuildTask)) {
 	}
 }
 
-func (o *Orchestrator) buildOrCleanProject(task *BuildTask, path tspath.Path, buildResult *orchestratorResult) {
+func (o *Orchestrator) buildReadyProjects(buildResult *orchestratorResult) {
+	workerCount := 4
+	if o.opts.Command.CompilerOptions.SingleThreaded.IsTrue() {
+		workerCount = 1
+	} else if builders := o.opts.Command.BuildOptions.Builders; builders != nil {
+		workerCount = *builders
+	}
+	tasks := make([]*BuildTask, len(o.order))
+	paths := make([]tspath.Path, len(o.order))
+	indices := make(map[*BuildTask]int, len(o.order))
+	for i, config := range o.order {
+		paths[i] = o.toPath(config)
+		tasks[i] = o.getTask(paths[i])
+		indices[tasks[i]] = i
+	}
+	dependencies := make([][]int, len(tasks))
+	for i, task := range tasks {
+		for _, upstream := range task.upStream {
+			index, ok := indices[upstream.task]
+			if !ok {
+				panic("Missing upstream build task")
+			}
+			dependencies[i] = append(dependencies[i], index)
+		}
+	}
+	executeReadyBuildTasks(dependencies, workerCount, func(i int) {
+		o.buildOrCleanProject(tasks[i], paths[i])
+	}, func(i int) {
+		tasks[i].report(o, paths[i], buildResult)
+	})
+}
+
+func (o *Orchestrator) buildOrCleanProject(task *BuildTask, path tspath.Path) {
 	task.result = &taskResult{}
 	task.result.reportStatus = o.createBuilderStatusReporter(task)
 	task.result.diagnosticReporter = o.createDiagnosticReporter(task)
@@ -730,7 +767,6 @@ func (o *Orchestrator) buildOrCleanProject(task *BuildTask, path tspath.Path, bu
 	} else {
 		task.cleanProject(o, path)
 	}
-	task.report(o, path, buildResult)
 }
 
 func (o *Orchestrator) getWriter(task *BuildTask) io.Writer {

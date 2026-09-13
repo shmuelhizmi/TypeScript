@@ -175,6 +175,12 @@ func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path) {
 			}
 		}
 	}
+	// Reporting happens later, in project order, and needs only the statistics and
+	// diagnostics; release the program now so its memory is not held while earlier
+	// projects finish. Tests keep it for the OnProgram callback.
+	if orchestrator.opts.Testing == nil {
+		t.result.program = nil
+	}
 	t.unblockDownstream()
 }
 
