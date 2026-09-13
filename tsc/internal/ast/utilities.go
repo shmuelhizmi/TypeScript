@@ -31,6 +31,11 @@ func GetNodeId(node *Node) NodeId {
 	return NodeId(id)
 }
 
+// TryGetSymbolId returns an existing ID, or zero if no ID has been assigned.
+func TryGetSymbolId(symbol *Symbol) SymbolId {
+	return SymbolId(symbol.id.Load())
+}
+
 func GetSymbolId(symbol *Symbol) SymbolId {
 	id := symbol.id.Load()
 	if id == 0 {

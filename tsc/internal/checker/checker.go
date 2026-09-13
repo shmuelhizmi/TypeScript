@@ -14562,7 +14562,13 @@ func (c *Checker) cloneSymbol(symbol *ast.Symbol) *ast.Symbol {
 
 func (c *Checker) getMergedSymbol(symbol *ast.Symbol) *ast.Symbol {
 	if symbol != nil {
-		merged := c.mergedSymbols.TryGet(uint64(ast.GetSymbolId(symbol)))
+		// Recording a merge assigns an ID before storing it. A symbol with no
+		// ID cannot have an entry in this checker's merged-symbol store.
+		id := ast.TryGetSymbolId(symbol)
+		if id == 0 {
+			return symbol
+		}
+		merged := c.mergedSymbols.TryGet(uint64(id))
 		if merged != nil && *merged != nil {
 			return *merged
 		}
