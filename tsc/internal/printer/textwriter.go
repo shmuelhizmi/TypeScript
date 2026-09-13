@@ -20,6 +20,7 @@ type textWriter struct {
 	lineStart               bool
 	lineCount               int
 	linePos                 int
+	asciiScanPos            int // Bytes in [linePos, asciiScanPos) are known ASCII; -1 once the line holds a non-ASCII byte
 	hasTrailingCommentState bool
 }
 
@@ -41,9 +42,20 @@ func (w *textWriter) GetColumn() core.UTF16Offset {
 	if w.lineStart {
 		return core.UTF16Offset(w.indent * w.indentSize)
 	}
-	// Count UTF-16 code units from the last line start.
-	// For ASCII-only output (the common case), this equals the byte count.
-	return core.UTF16Len(w.builder.String()[w.linePos:])
+	text := w.builder.String()
+	if w.asciiScanPos >= 0 {
+		// Only the bytes appended since the previous call need scanning.
+		for w.asciiScanPos < len(text) && text[w.asciiScanPos] < utf8.RuneSelf {
+			w.asciiScanPos++
+		}
+		if w.asciiScanPos == len(text) {
+			return core.UTF16Offset(len(text) - w.linePos)
+		}
+		// A write may end inside a UTF-8 sequence, so a partial UTF-16 count
+		// cannot be carried over; recount the whole line from now on.
+		w.asciiScanPos = -1
+	}
+	return core.UTF16Len(text[w.linePos:])
 }
 
 func (w *textWriter) GetIndent() int {
@@ -107,6 +119,7 @@ func (w *textWriter) updateLineCountAndPosFor(s string) {
 		w.lineCount += count - 1
 		curLen := w.builder.Len()
 		w.linePos = curLen - len(s) + int(lastLineStart)
+		w.asciiScanPos = w.linePos
 		w.lineStart = (w.linePos - curLen) == 0
 		return
 	}
@@ -163,6 +176,7 @@ func (w *textWriter) writeLineRaw() {
 	w.lastWritten = w.newLine
 	w.lineCount++
 	w.linePos = w.builder.Len()
+	w.asciiScanPos = w.linePos
 	w.lineStart = true
 	w.hasTrailingCommentState = false
 }
