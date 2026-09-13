@@ -14620,10 +14620,17 @@ func (c *Checker) getSymbolOfNode(node *ast.Node) *ast.Symbol {
 	return nil
 }
 
+// getLateBoundSymbol returns the late-bound symbol of a class member with a
+// computed name and any other symbol unchanged. It is kept small enough to
+// inline; the late binding is in getLateBoundSymbolWorker.
 func (c *Checker) getLateBoundSymbol(symbol *ast.Symbol) *ast.Symbol {
 	if symbol.Flags&ast.SymbolFlagsClassMember == 0 || symbol.Name != ast.InternalSymbolNameComputed {
 		return symbol
 	}
+	return c.getLateBoundSymbolWorker(symbol)
+}
+
+func (c *Checker) getLateBoundSymbolWorker(symbol *ast.Symbol) *ast.Symbol {
 	links := c.lateBoundLinks.Get(symbol)
 	if links.lateSymbol == nil && core.Some(symbol.Declarations, c.hasLateBindableName) {
 		// force late binding of members/exports. This will set the late-bound symbol
