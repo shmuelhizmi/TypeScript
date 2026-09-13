@@ -55,6 +55,19 @@ type programStatsImportedFile struct {
 	Generic   int     `json:"generic"`
 }
 
+// programStatsChecker describes one checker's share of the program: the source files associated with it and the
+// declaration files those source files reach through imports (transitively, through source and declaration files).
+// The reachable declaration weight is the static proxy for the library work every checker repeats.
+type programStatsChecker struct {
+	Checker                     int `json:"checker"`
+	SourceFiles                 int `json:"sourceFiles"`
+	SourceWeight                int `json:"sourceWeight"`
+	SourceGeneric               int `json:"sourceGeneric"`
+	ReachableDeclarationFiles   int `json:"reachableDeclarationFiles"`
+	ReachableDeclarationWeight  int `json:"reachableDeclarationWeight"`
+	ReachableDeclarationGeneric int `json:"reachableDeclarationGeneric"`
+}
+
 type programStats struct {
 	CheckerCount     int                  `json:"checkerCount"`
 	Files            int                  `json:"files"`
@@ -66,17 +79,18 @@ type programStats struct {
 	DemandWeight  float64                    `json:"demandWeight"`
 	DemandGeneric float64                    `json:"demandGeneric"`
 	TopImported   []programStatsImportedFile `json:"topImported"`
+	Checkers      []programStatsChecker      `json:"checkers"`
 }
 
 func programStatsEnabled() bool {
 	return os.Getenv(programStatsEnv) != ""
 }
 
-func (p *checkerPool) reportProgramStats() {
+func (p *checkerPool) reportProgramStats(associations []int) {
 	if !programStatsEnabled() {
 		return
 	}
-	stats := collectProgramStats(p.program, len(p.checkers))
+	stats := collectProgramStats(p.program, len(p.checkers), associations)
 	encoded, err := json.Marshal(stats)
 	if err != nil {
 		panic(err)
@@ -84,7 +98,8 @@ func (p *checkerPool) reportProgramStats() {
 	fmt.Fprintf(os.Stderr, "program-stats %s\n", encoded)
 }
 
-func collectProgramStats(program *Program, checkerCount int) *programStats {
+// collectProgramStats computes the statistics; associations[i] is the checker index of program.files[i].
+func collectProgramStats(program *Program, checkerCount int, associations []int) *programStats {
 	files := program.files
 	stats := &programStats{CheckerCount: checkerCount, Files: len(files)}
 	perFile := make([]programStatsFileKind, len(files))
@@ -107,30 +122,16 @@ func collectProgramStats(program *Program, checkerCount int) *programStats {
 		stats.DeclarationShare = float64(stats.Declaration.Weight) / float64(total)
 	}
 
-	fileIndices := make(map[*ast.SourceFile]int, len(files))
-	for i, file := range files {
-		fileIndices[file] = i
-	}
+	imports := programStatsImports(program)
 	importers := make([]int, len(files))
-	seen := make(map[int]struct{})
-	for _, file := range files {
+	for i, file := range files {
 		if file.IsDeclarationFile {
 			continue
 		}
-		clear(seen)
-		for _, resolved := range program.resolvedModules[file.Path()] {
-			if resolved == nil || !resolved.IsResolved() {
-				continue
+		for _, index := range imports[i] {
+			if files[index].IsDeclarationFile {
+				importers[index]++
 			}
-			index, ok := fileIndices[program.GetSourceFileForResolvedModule(resolved.ResolvedFileName)]
-			if !ok || !files[index].IsDeclarationFile {
-				continue
-			}
-			if _, done := seen[index]; done {
-				continue
-			}
-			seen[index] = struct{}{}
-			importers[index]++
 		}
 	}
 	var imported []programStatsImportedFile
@@ -145,7 +146,72 @@ func collectProgramStats(program *Program, checkerCount int) *programStats {
 	}
 	slices.SortStableFunc(imported, func(a, b programStatsImportedFile) int { return b.Importers - a.Importers })
 	stats.TopImported = imported[:min(len(imported), programStatsTopImported)]
+
+	stats.Checkers = make([]programStatsChecker, checkerCount)
+	reached := make([]bool, len(files))
+	var queue []int
+	for c := range stats.Checkers {
+		entry := &stats.Checkers[c]
+		entry.Checker = c
+		clear(reached)
+		queue = queue[:0]
+		for i, file := range files {
+			if file.IsDeclarationFile || associations[i] != c {
+				continue
+			}
+			entry.SourceFiles++
+			entry.SourceWeight += perFile[i].Weight
+			entry.SourceGeneric += perFile[i].generic()
+			reached[i] = true
+			queue = append(queue, i)
+		}
+		for len(queue) > 0 {
+			index := queue[len(queue)-1]
+			queue = queue[:len(queue)-1]
+			for _, next := range imports[index] {
+				if reached[next] {
+					continue
+				}
+				reached[next] = true
+				queue = append(queue, next)
+				if files[next].IsDeclarationFile {
+					entry.ReachableDeclarationFiles++
+					entry.ReachableDeclarationWeight += perFile[next].Weight
+					entry.ReachableDeclarationGeneric += perFile[next].generic()
+				}
+			}
+		}
+	}
 	return stats
+}
+
+// programStatsImports returns, per file index, the indices of the program files it imports (each once).
+func programStatsImports(program *Program) [][]int {
+	files := program.files
+	fileIndices := make(map[*ast.SourceFile]int, len(files))
+	for i, file := range files {
+		fileIndices[file] = i
+	}
+	imports := make([][]int, len(files))
+	seen := make(map[int]struct{})
+	for i, file := range files {
+		clear(seen)
+		for _, resolved := range program.resolvedModules[file.Path()] {
+			if resolved == nil || !resolved.IsResolved() {
+				continue
+			}
+			index, ok := fileIndices[program.GetSourceFileForResolvedModule(resolved.ResolvedFileName)]
+			if !ok || index == i {
+				continue
+			}
+			if _, done := seen[index]; done {
+				continue
+			}
+			seen[index] = struct{}{}
+			imports[i] = append(imports[i], index)
+		}
+	}
+	return imports
 }
 
 func (k *programStatsFileKind) add(other *programStatsFileKind) {

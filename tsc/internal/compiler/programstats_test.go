@@ -32,7 +32,13 @@ func TestCollectProgramStats(t *testing.T) {
 		Host: NewCompilerHost("/src", fs, "", nil, nil, nil),
 	})
 
-	stats := collectProgramStats(program, 4)
+	// index.ts and second.ts share a checker; other.ts and lib.d.ts have their own.
+	checkerOf := map[string]int{"/src/index.ts": 0, "/src/second.ts": 0, "/src/other.ts": 1, "/src/lib.d.ts": 2}
+	associations := make([]int, len(program.files))
+	for i, file := range program.files {
+		associations[i] = checkerOf[file.FileName()]
+	}
+	stats := collectProgramStats(program, 4, associations)
 
 	assert.Equal(t, stats.CheckerCount, 4)
 	assert.Equal(t, stats.Files, 4)
@@ -67,4 +73,17 @@ func TestCollectProgramStats(t *testing.T) {
 	assert.Equal(t, top.Generic, 13)
 	assert.Equal(t, stats.DemandWeight, float64(lib.Weight)*2.0/3.0)
 	assert.Equal(t, stats.DemandGeneric, 13*2.0/3.0)
+
+	assert.Equal(t, len(stats.Checkers), 4)
+	first := stats.Checkers[0]
+	assert.Equal(t, first.SourceFiles, 2)
+	assert.Equal(t, first.SourceGeneric, 0)
+	assert.Equal(t, first.ReachableDeclarationFiles, 1, "lib.d.ts is reached from index.ts and second.ts, counted once")
+	assert.Equal(t, first.ReachableDeclarationWeight, lib.Weight)
+	assert.Equal(t, first.ReachableDeclarationGeneric, 13)
+	assert.Equal(t, stats.Checkers[1].SourceFiles, 1)
+	assert.Equal(t, stats.Checkers[1].ReachableDeclarationFiles, 0, "other.ts imports nothing")
+	assert.Equal(t, stats.Checkers[2].SourceFiles, 0, "a checker owning only a declaration file has no source reach")
+	assert.Equal(t, stats.Checkers[2].ReachableDeclarationFiles, 0)
+	assert.Equal(t, stats.Checkers[3].SourceFiles, 0)
 }

@@ -318,7 +318,6 @@ func newCheckerPoolWithTracing(program *Program, tr *tracing.Tracing) *checkerPo
 		locks:    make([]*sync.Mutex, checkerCount),
 		tracing:  tr,
 	}
-	pool.reportProgramStats()
 
 	return pool
 }
@@ -444,6 +443,7 @@ func (p *checkerPool) createCheckers() {
 		for i, file := range p.program.files {
 			p.fileAssociations[file] = p.checkers[associations[i]]
 		}
+		p.reportProgramStats(associations)
 	})
 }
 
