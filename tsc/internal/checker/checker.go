@@ -14624,6 +14624,10 @@ func (c *Checker) getLateBoundSymbol(symbol *ast.Symbol) *ast.Symbol {
 	if symbol.Flags&ast.SymbolFlagsClassMember == 0 || symbol.Name != ast.InternalSymbolNameComputed {
 		return symbol
 	}
+	return c.getLateBoundSymbolWorker(symbol)
+}
+
+func (c *Checker) getLateBoundSymbolWorker(symbol *ast.Symbol) *ast.Symbol {
 	links := c.lateBoundLinks.Get(symbol)
 	if links.lateSymbol == nil && core.Some(symbol.Declarations, c.hasLateBindableName) {
 		// force late binding of members/exports. This will set the late-bound symbol
