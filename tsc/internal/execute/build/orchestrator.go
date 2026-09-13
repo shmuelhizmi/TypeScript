@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -166,6 +167,18 @@ func (o *Orchestrator) createBuildTasks(oldTasks *collections.SyncMap[tspath.Pat
 	}
 }
 
+// dropBuildReference reports whether the measurement-only environment variable TSGO_BUILD_DROP_REFERENCES names the
+// edge from the downstream project to the upstream one: pairs "downstream:upstream" separated by ';', each side a
+// substring of the config file path. The reference itself stays; only the wait on the upstream build is dropped.
+func dropBuildReference(downstream string, upstream string) bool {
+	for _, pair := range strings.Split(os.Getenv("TSGO_BUILD_DROP_REFERENCES"), ";") {
+		if d, u, ok := strings.Cut(pair, ":"); ok && strings.Contains(downstream, d) && strings.Contains(upstream, u) {
+			return true
+		}
+	}
+	return false
+}
+
 func (o *Orchestrator) setupBuildTask(
 	configName string,
 	downStream *BuildTask,
@@ -192,6 +205,10 @@ func (o *Orchestrator) setupBuildTask(
 			for index, subReference := range task.resolved.ResolvedProjectReferencePaths() {
 				upstream := o.setupBuildTask(subReference, task, inCircularContext || task.resolved.ProjectReferences()[index].Circular, completed, analyzing, circularityStack)
 				if upstream != nil {
+					if dropBuildReference(configName, subReference) {
+						fmt.Fprintf(os.Stderr, "TSGO_BUILD_DROP_REFERENCES: %s does not wait for %s\n", configName, subReference)
+						continue
+					}
 					task.upStream = append(task.upStream, &upstreamTask{task: upstream, refIndex: index})
 				}
 			}
