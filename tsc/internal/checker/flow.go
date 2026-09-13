@@ -38,15 +38,16 @@ type SharedFlow struct {
 }
 
 type FlowState struct {
-	reference       *ast.Node
-	declaredType    *Type
-	initialType     *Type
-	flowContainer   *ast.Node
-	refKey          CacheHashKey
-	depth           int
-	sharedFlowStart int
-	reduceLabels    []*ast.FlowReduceLabelData
-	next            *FlowState
+	reference         *ast.Node
+	referenceRootName string
+	declaredType      *Type
+	initialType       *Type
+	flowContainer     *ast.Node
+	refKey            CacheHashKey
+	depth             int
+	sharedFlowStart   int
+	reduceLabels      []*ast.FlowReduceLabelData
+	next              *FlowState
 }
 
 func (c *Checker) getFlowState() *FlowState {
@@ -90,6 +91,7 @@ func (c *Checker) getFlowTypeOfReferenceEx(reference *ast.Node, declaredType *Ty
 	}
 	f := c.getFlowState()
 	f.reference = reference
+	f.referenceRootName = getFlowReferenceRootName(reference)
 	f.declaredType = declaredType
 	f.initialType = core.Coalesce(initialType, declaredType)
 	f.flowContainer = flowContainer
@@ -217,8 +219,28 @@ func getBranchLabelAntecedents(flow *ast.FlowNode, reduceLabels []*ast.FlowReduc
 	return flow.Antecedents
 }
 
+// getFlowReferenceRootName returns the identifier at the root of a simple reference.
+// An empty name leaves matching to the general reference comparison.
+func getFlowReferenceRootName(node *ast.Node) string {
+	for ast.IsAccessExpression(node) || ast.IsParenthesizedExpression(node) || ast.IsNonNullExpression(node) || ast.IsSatisfiesExpression(node) {
+		node = node.Expression()
+	}
+	if ast.IsIdentifier(node) && !ast.IsThisInTypeQuery(node) {
+		return node.Text()
+	}
+	return ""
+}
+
 func (c *Checker) getTypeAtFlowAssignment(f *FlowState, flow *ast.FlowNode) FlowType {
 	node := flow.Node
+	if f.referenceRootName != "" && (ast.IsVariableDeclaration(node) || ast.IsBindingElement(node)) {
+		if name := node.Name(); name != nil && ast.IsIdentifier(name) && name.Text() != f.referenceRootName {
+			// A for-in declaration can narrow its iterated expression independently of its binding name.
+			if !ast.IsVariableDeclaration(node) || !ast.IsForInStatement(node.Parent.Parent) {
+				return FlowType{}
+			}
+		}
+	}
 	// Assignments only narrow the computed type if the declared type is a union type. Thus, we
 	// only need to evaluate the assigned type if the declared type is a union type.
 	if c.isMatchingReference(f.reference, node) {
