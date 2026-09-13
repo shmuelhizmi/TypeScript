@@ -1,0 +1,31 @@
+//// [tests/cases/compiler/narrowingAcrossArrayBindingPatternHole.ts] ////
+
+=== narrowingAcrossArrayBindingPatternHole.ts ===
+// The hole in the array binding pattern is a binding element without a name; the
+// flow path from the narrowed use of `value` crosses its assignment node.
+declare const pair: [number, string];
+>pair : [number, string]
+
+function narrowAcrossHole(value: string | number) {
+>narrowAcrossHole : (value: string | number) => string
+>value : string | number
+
+    value = "text";
+>value = "text" : "text"
+>value : string | number
+>"text" : "text"
+
+    const [, second] = pair;
+>second : string
+>pair : [number, string]
+
+    const narrowed: string = value;
+>narrowed : string
+>value : string
+
+    return narrowed + second;
+>narrowed + second : string
+>narrowed : string
+>second : string
+}
+
