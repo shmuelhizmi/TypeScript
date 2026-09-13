@@ -19472,7 +19472,16 @@ func (c *Checker) resolveObjectTypeMembers(t *Type, source *Type, typeParameters
 		}
 		t.objectFlags &^= ObjectFlagsUnresolvedMembers
 	}
-	c.setStructuredTypeMembers(t, members, callSignatures, constructSignatures, indexInfos)
+	// Instantiations of a class or interface reuse the member order recorded by the
+	// first complete instantiation. The order is recorded once, so it is only taken
+	// from a full member set: not while the base types of the declared type are
+	// still being resolved, and not while the declared type's own members are
+	// being resolved again through a circular base.
+	if instantiated && resolved.baseTypesResolved && source.objectFlags&ObjectFlagsClassOrInterface != 0 && source.objectFlags&ObjectFlagsUnresolvedMembers == 0 {
+		c.setStructuredTypeMembersWithOrder(t, members, callSignatures, constructSignatures, indexInfos, resolved)
+	} else {
+		c.setStructuredTypeMembers(t, members, callSignatures, constructSignatures, indexInfos)
+	}
 }
 
 func findIndexInfo(indexInfos []*IndexInfo, keyType *Type) *IndexInfo {
@@ -22385,6 +22394,68 @@ func (c *Checker) getResolvedTypeParameterDefault(t *Type) *Type {
 func (c *Checker) getDefaultOrUnknownFromTypeParameter(t *Type) *Type {
 	result := c.getDefaultFromTypeParameter(t)
 	return core.IfElse(result != nil, result, c.unknownType)
+}
+
+// getNamedMembersWithOrder returns the named members of an instantiation of
+// source in the order getNamedMembers produces, projecting the order recorded
+// by the first instantiation when the members match it entry by entry and
+// sorting afresh otherwise. The recording is never replaced.
+func (c *Checker) getNamedMembersWithOrder(members ast.SymbolTable, container *ast.Symbol, source *InterfaceType) []*ast.Symbol {
+	var declarations []*ast.Node
+	if container != nil {
+		declarations = container.Declarations
+	}
+	order := source.instantiatedMemberOrder
+	if order != nil && order.container == container && slices.Equal(order.declarations, declarations) {
+		if properties := projectMemberOrder(members, order.entries); properties != nil {
+			return properties
+		}
+	}
+	properties := c.getNamedMembers(members, container)
+	if order == nil {
+		if entries := createMemberOrder(members, properties); entries != nil {
+			source.instantiatedMemberOrder = &memberOrder{container: container, declarations: slices.Clone(declarations), entries: entries}
+		}
+	}
+	return properties
+}
+
+// projectMemberOrder arranges members in a recorded order. It returns nil
+// unless every entry finds a value member with the recorded name, first
+// declaration and value declaration, which are what getNamedMembers orders
+// and partitions on.
+func projectMemberOrder(members ast.SymbolTable, order []memberOrderEntry) []*ast.Symbol {
+	if len(members) != len(order) {
+		return nil
+	}
+	properties := make([]*ast.Symbol, len(order))
+	for i, entry := range order {
+		symbol := members[entry.name]
+		if symbol == nil || symbol.Name != entry.name || symbol.Flags&ast.SymbolFlagsValue == 0 ||
+			symbol.ValueDeclaration != entry.valueDeclaration || core.FirstOrNil(symbol.Declarations) != entry.declaration {
+			return nil
+		}
+		properties[i] = symbol
+	}
+	return properties
+}
+
+// createMemberOrder records the order of properties, the result of
+// getNamedMembers for members. It returns nil when there is nothing to gain
+// or when the table holds members that getNamedMembers left out or that are
+// not plain value members keyed by their own name.
+func createMemberOrder(members ast.SymbolTable, properties []*ast.Symbol) []memberOrderEntry {
+	if len(properties) < 2 || len(properties) != len(members) {
+		return nil
+	}
+	order := make([]memberOrderEntry, len(properties))
+	for i, symbol := range properties {
+		if symbol.Flags&ast.SymbolFlagsValue == 0 || members[symbol.Name] != symbol {
+			return nil
+		}
+		order[i] = memberOrderEntry{name: symbol.Name, declaration: core.FirstOrNil(symbol.Declarations), valueDeclaration: symbol.ValueDeclaration}
+	}
+	return order
 }
 
 func (c *Checker) getNamedMembers(members ast.SymbolTable, container *ast.Symbol) []*ast.Symbol {
@@ -25493,10 +25564,18 @@ func (c *Checker) cloneTypeReference(source *Type) *Type {
 }
 
 func (c *Checker) setStructuredTypeMembers(t *Type, members ast.SymbolTable, callSignatures []*Signature, constructSignatures []*Signature, indexInfos []*IndexInfo) {
+	c.setStructuredTypeMembersWithOrder(t, members, callSignatures, constructSignatures, indexInfos, nil)
+}
+
+func (c *Checker) setStructuredTypeMembersWithOrder(t *Type, members ast.SymbolTable, callSignatures []*Signature, constructSignatures []*Signature, indexInfos []*IndexInfo, source *InterfaceType) {
 	t.objectFlags |= ObjectFlagsMembersResolved
 	data := t.AsStructuredType()
 	data.members = members
-	data.properties = c.getNamedMembers(members, t.symbol)
+	if source != nil {
+		data.properties = c.getNamedMembersWithOrder(members, t.symbol, source)
+	} else {
+		data.properties = c.getNamedMembers(members, t.symbol)
+	}
 	if len(callSignatures) != 0 {
 		if len(constructSignatures) != 0 {
 			data.signatures = core.Concatenate(callSignatures, constructSignatures)
