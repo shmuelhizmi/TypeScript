@@ -22862,11 +22862,24 @@ func (c *Checker) getConditionalTypeInstantiation(t *Type, mapper *TypeMapper, f
 		// We are instantiating a conditional type that has one or more type parameters in scope. Apply the
 		// mapper to the type parameters to produce the effective list of type arguments, and compute the
 		// instantiation cache key from the type IDs of the type arguments.
-		typeArguments := core.Map(root.outerTypeParameters, mapper.Map)
-		key := getConditionalTypeKey(typeArguments, alias, forConstraint)
+		var typeArguments []*Type
+		var singleArgument *Type
+		var key CacheHashKey
+		if len(root.outerTypeParameters) == 1 {
+			singleArgument = mapper.Map(root.outerTypeParameters[0])
+			key = getConditionalTypeKey([]*Type{singleArgument}, alias, forConstraint)
+		} else {
+			typeArguments = core.Map(root.outerTypeParameters, mapper.Map)
+			key = getConditionalTypeKey(typeArguments, alias, forConstraint)
+		}
 		result := root.instantiations[key]
 		if result == nil {
-			newMapper := newTypeMapper(root.outerTypeParameters, typeArguments)
+			var newMapper *TypeMapper
+			if len(root.outerTypeParameters) == 1 {
+				newMapper = newSimpleTypeMapper(root.outerTypeParameters[0], singleArgument)
+			} else {
+				newMapper = newTypeMapper(root.outerTypeParameters, typeArguments)
+			}
 			checkType := root.checkType
 			var distributionType *Type
 			if root.isDistributive {
