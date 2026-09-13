@@ -75,6 +75,9 @@ type Orchestrator struct {
 	order  []string
 	errors []*ast.Diagnostic
 
+	// rootFileOwners is rebuilt before the projects of a build are compiled; see collectRootFileOwners.
+	rootFileOwners rootFileOwners
+
 	errorSummaryReporter tsc.DiagnosticsReporter
 	watchStatusReporter  tsc.DiagnosticReporter
 
@@ -669,6 +672,7 @@ func (o *Orchestrator) buildOrClean() tsc.CommandLineResult {
 	var buildResult orchestratorResult
 	if len(o.errors) == 0 {
 		buildResult.statistics.Projects = len(o.Order())
+		o.rootFileOwners = o.collectRootFileOwners()
 		o.rangeTask(func(path tspath.Path, task *BuildTask) {
 			o.buildOrCleanProject(task, path, &buildResult)
 		})
