@@ -169,7 +169,7 @@ func processAllProgramFiles(
 			wg:       core.NewWorkGroup(singleThreaded),
 			maxDepth: maxNodeModuleJsDepth,
 		},
-		rootTasks:           make([]*parseTask, 0, len(rootFiles)+len(compilerOptions.Lib)),
+		rootTasks:           make([]*parseTask, len(rootFiles), len(rootFiles)+len(compilerOptions.Lib)),
 		supportedExtensions: supportedExtensions,
 		supportedExtensionsWithJsonIfResolveJsonModule: supportedExtensionsWithJsonIfResolveJsonModule,
 		contentMapperExtensions:                        opts.Config.ContentMapperExtensions(),
@@ -179,9 +179,14 @@ func processAllProgramFiles(
 	if opts.Tracing != nil {
 		defer opts.Tracing.Push(tracing.PhaseProgram, "processRootFiles", map[string]any{"count": len(rootFiles)}, false)()
 	}
+	// Resolving a root file looks it up on disk; the roots are resolved concurrently, each into its own slot.
+	rootFileTasks := core.NewWorkGroup(singleThreaded)
 	for index, rootFile := range rootFiles {
-		loader.addRootFileTask(rootFile, nil, &FileIncludeReason{kind: fileIncludeKindRootFile, data: index})
+		rootFileTasks.Queue(func() {
+			loader.rootTasks[index] = loader.rootFileTask(rootFile, &FileIncludeReason{kind: fileIncludeKindRootFile, data: index})
+		})
 	}
+	rootFileTasks.RunAndWait()
 	if len(rootFiles) > 0 && compilerOptions.NoLib.IsFalseOrUnknown() {
 		if compilerOptions.Lib == nil {
 			name := tsoptions.GetDefaultLibFileName(compilerOptions)
@@ -203,7 +208,7 @@ func processAllProgramFiles(
 		loader.addAutomaticTypeDirectiveTasks()
 	}
 
-	loader.filesParser.parse(&loader, loader.rootTasks)
+	loader.filesParser.parse(&loader, loader.rootTasksInStartOrder(singleThreaded))
 
 	// Clear out loader and host to ensure its not used post program creation
 	loader.projectReferenceFileMapper.loader = nil
@@ -227,7 +232,40 @@ func (p *fileLoader) addRootTask(fileName string, libFile *LibFile, includeReaso
 	}
 }
 
-func (p *fileLoader) addRootFileTask(fileName string, libFile *LibFile, includeReason *FileIncludeReason) {
+// rootTasksInStartOrder returns the root tasks in the order to start them. A parallel work group starts its tasks
+// roughly in the order they were queued, so a parallel build starts the lib files, the largest tasks, before the
+// other root tasks. The order is kept when the build is single-threaded (its work group runs the last queued task
+// first, and the order in which it parses the files is recorded by --generateTrace) and when a lib file shares its
+// path with another root task, since the first task started for a path owns it.
+func (p *fileLoader) rootTasksInStartOrder(singleThreaded bool) []*parseTask {
+	if singleThreaded {
+		return p.rootTasks
+	}
+	var libFiles []*parseTask
+	libPaths := make(map[tspath.Path]struct{})
+	for _, task := range p.rootTasks {
+		if task.libFile != nil {
+			libPaths[p.toPath(task.normalizedFilePath)] = struct{}{}
+			libFiles = append(libFiles, task)
+		}
+	}
+	if len(libFiles) == 0 {
+		return p.rootTasks
+	}
+	tasks := make([]*parseTask, 0, len(p.rootTasks))
+	tasks = append(tasks, libFiles...)
+	for _, task := range p.rootTasks {
+		if task.libFile == nil {
+			if _, shared := libPaths[p.toPath(task.normalizedFilePath)]; shared {
+				return p.rootTasks
+			}
+			tasks = append(tasks, task)
+		}
+	}
+	return tasks
+}
+
+func (p *fileLoader) rootFileTask(fileName string, includeReason *FileIncludeReason) *parseTask {
 	currDir := p.opts.Host.GetCurrentDirectory()
 	absPath := tspath.GetNormalizedAbsolutePath(fileName, currDir)
 	containingFile := currDir
@@ -237,7 +275,6 @@ func (p *fileLoader) addRootFileTask(fileName string, libFile *LibFile, includeR
 	resolvedFile, diagnostic := p.getSourceFileFromReference(absPath, fileName, containingFile, includeReason)
 	rootTask := &parseTask{
 		normalizedFilePath: resolvedFile,
-		libFile:            libFile,
 		includeReason:      includeReason,
 	}
 	if diagnostic != nil {
@@ -252,7 +289,7 @@ func (p *fileLoader) addRootFileTask(fileName string, libFile *LibFile, includeR
 			},
 		}}
 	}
-	p.rootTasks = append(p.rootTasks, rootTask)
+	return rootTask
 }
 
 func (p *fileLoader) addAutomaticTypeDirectiveTasks() {
