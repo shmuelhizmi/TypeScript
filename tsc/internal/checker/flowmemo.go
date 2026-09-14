@@ -133,27 +133,34 @@ func (c *Checker) isReferenceDependentNarrowableType(t *Type) bool {
 	return someType(t, c.isGenericTypeWithUnionConstraint)
 }
 
-// isFlowMemoStableType reports whether recomputing a flow type would yield t itself rather
-// than a structurally equal copy: t existed before the flow analysis invocation began (its
-// id is at most typeCount; later types can reach the result through the invocation's shared
-// flow cache), or it is a literal, or a union or intersection of stable types, all of which
-// are interned. An object literal type, for one, is created afresh by every evaluation.
+// A type that originates in an object, array or JSX literal is created afresh by every
+// evaluation of that expression, so two evaluations yield structurally equal but distinct
+// types. A memo must not hand one evaluation's copy to another reference: the copies print
+// the same but are not identical, and a union of both would print its member twice.
+const flowMemoUnstableObjectFlags = ObjectFlagsObjectLiteral | ObjectFlagsArrayLiteral | ObjectFlagsJsxAttributes
+
+// isFlowMemoStableType reports whether recomputing a flow type is known to yield t itself
+// rather than a structurally equal copy: t carries no literal-expression origin, and either
+// existed before the flow analysis invocation began (its id is at most typeCount; types made
+// during the invocation can reach the result through the shared flow cache) or is a literal
+// type or a union or intersection of stable types, all of which are interned.
 func isFlowMemoStableType(t *Type, typeCount uint32) bool {
-	if uint32(t.id) <= typeCount || t.flags&TypeFlagsLiteral != 0 {
-		return true
-	}
-	if t.flags&TypeFlagsUnionOrIntersection == 0 {
+	if t.objectFlags&flowMemoUnstableObjectFlags != 0 {
 		return false
 	}
-	for _, constituent := range t.Types() {
-		if !isFlowMemoStableType(constituent, typeCount) {
-			return false
+	if t.flags&TypeFlagsUnionOrIntersection != 0 {
+		for _, constituent := range t.Types() {
+			if !isFlowMemoStableType(constituent, typeCount) {
+				return false
+			}
 		}
-	}
-	if t.flags&TypeFlagsUnion != 0 {
-		if origin := t.AsUnionType().origin; origin != nil && !isFlowMemoStableType(origin, typeCount) {
-			return false
+		if t.flags&TypeFlagsUnion != 0 {
+			if origin := t.AsUnionType().origin; origin != nil && !isFlowMemoStableType(origin, typeCount) {
+				return false
+			}
 		}
+	} else if uint32(t.id) > typeCount && t.flags&TypeFlagsLiteral == 0 {
+		return false
 	}
 	if alias := t.alias; alias != nil {
 		for _, argument := range alias.typeArguments {
