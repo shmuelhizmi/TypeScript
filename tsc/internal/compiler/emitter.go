@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"sync"
+
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/binder"
 	"github.com/microsoft/TypeScript/tsc/internal/core"
@@ -41,15 +43,69 @@ type emitter struct {
 	forceEmit          bool
 	writeFile          func(fileName string, text string, data *WriteFileData) error
 	tr                 *tracing.Tracing
+	singleThreaded     bool
 }
 
 func (e *emitter) emit() {
 	if e.tr != nil {
 		defer e.tr.Push(tracing.PhaseEmit, "emit", map[string]any{"path": string(e.sourceFile.Path())}, true)()
 	}
-	e.emitJSFile(e.sourceFile, e.paths.JsFilePath(), e.paths.SourceMapFilePath())
-	e.emitDeclarationFile(e.sourceFile, e.paths.DeclarationFilePath(), e.paths.DeclarationMapPath())
+	if e.emitsConcurrently() {
+		e.emitConcurrently()
+	} else {
+		e.emitJSFile(e.sourceFile, e.paths.JsFilePath(), e.paths.SourceMapFilePath())
+		e.emitDeclarationFile(e.sourceFile, e.paths.DeclarationFilePath(), e.paths.DeclarationMapPath())
+	}
 	e.emitResult.Diagnostics = e.emitterDiagnostics.GetDiagnostics()
+}
+
+// concurrentEmitMinLength is the source length from which a file's JavaScript is emitted concurrently with its
+// declaration transforms. The two emits of such a file take long enough that, one after the other, they are the
+// longest part of the program's emit phase; for smaller files the second emit context kept alive by the overlap
+// would cost more memory than the time it saves.
+const concurrentEmitMinLength = 256 << 10
+
+func (e *emitter) emitsConcurrently() bool {
+	return !e.singleThreaded && e.emitOnly == EmitAll && len(e.paths.JsFilePath()) != 0 && len(e.paths.DeclarationFilePath()) != 0 &&
+		len(e.sourceFile.Text()) >= concurrentEmitMinLength
+}
+
+// emitConcurrently emits the JavaScript file on a second emitter and goroutine while the declaration transforms
+// run. The JavaScript emit only queries the checker, each query under the resolver's lock, so the checker performs
+// the declaration transforms' operations in the same order as in the sequential emit. The JavaScript emitter's
+// results are folded in before the declaration file is printed, so the emitted files, source maps and diagnostics
+// are recorded in the sequential emit's order.
+func (e *emitter) emitConcurrently() {
+	js := &emitter{
+		host:       e.host,
+		emitOnly:   e.emitOnly,
+		writer:     printer.NewTextWriter(e.host.Options().NewLine.GetNewLineCharacter(), 0),
+		paths:      e.paths,
+		sourceFile: e.sourceFile,
+		forceEmit:  e.forceEmit,
+		writeFile:  e.writeFile,
+		tr:         e.tr,
+	}
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		js.emitJSFile(js.sourceFile, js.paths.JsFilePath(), js.paths.SourceMapFilePath())
+	})
+	if e.tr != nil {
+		defer e.tr.Push(tracing.PhaseEmit, "emitDeclarationFileOrBundle", map[string]any{"declarationFilePath": e.paths.DeclarationFilePath()}, true)()
+	}
+	declaration, ok := e.transformDeclarationFile(e.sourceFile, e.paths.DeclarationFilePath(), e.paths.DeclarationMapPath())
+	wg.Wait()
+	e.emitResult.EmittedFiles = js.emitResult.EmittedFiles
+	e.emitResult.SourceMaps = js.emitResult.SourceMaps
+	if js.emitResult.EmitSkipped {
+		e.emitResult.EmitSkipped = true
+	}
+	for _, diagnostic := range js.emitterDiagnostics.GetDiagnostics() {
+		e.emitterDiagnostics.Add(diagnostic)
+	}
+	if ok {
+		e.printDeclarationFile(declaration)
+	}
 }
 
 type declarationTransformer interface {
@@ -219,21 +275,38 @@ func (e *emitter) emitJSFile(sourceFile *ast.SourceFile, jsFilePath string, sour
 }
 
 func (e *emitter) emitDeclarationFile(sourceFile *ast.SourceFile, declarationFilePath string, declarationMapPath string) {
-	options := e.host.Options()
-
 	if sourceFile == nil || e.emitOnly == EmitOnlyJs || len(declarationFilePath) == 0 {
 		return
 	}
-	emitDeclarationMap := e.emitOnly != EmitOnlyBuilderSignature && options.DeclarationMap.IsTrue()
-	contentMappedSource := sourceFile
 
 	if e.tr != nil {
 		defer e.tr.Push(tracing.PhaseEmit, "emitDeclarationFileOrBundle", map[string]any{"declarationFilePath": declarationFilePath}, true)()
 	}
 
+	if declaration, ok := e.transformDeclarationFile(sourceFile, declarationFilePath, declarationMapPath); ok {
+		e.printDeclarationFile(declaration)
+	}
+}
+
+// transformedDeclarationFile is a source file after its declaration transforms, ready to be printed.
+type transformedDeclarationFile struct {
+	sourceFile          *ast.SourceFile
+	contentMappedSource *ast.SourceFile
+	declarationFilePath string
+	declarationMapPath  string
+	emitDeclarationMap  bool
+	emitContext         *printer.EmitContext
+	putEmitContext      func()
+}
+
+// transformDeclarationFile runs the declaration transforms and records their diagnostics; it reports false when
+// the declaration file is not to be printed.
+func (e *emitter) transformDeclarationFile(sourceFile *ast.SourceFile, declarationFilePath string, declarationMapPath string) (transformedDeclarationFile, bool) {
+	options := e.host.Options()
+	emitDeclarationMap := e.emitOnly != EmitOnlyBuilderSignature && options.DeclarationMap.IsTrue()
+
 	emitContext, putEmitContext := printer.GetEmitContext()
-	defer putEmitContext()
-	sourceFile, diags := e.runDeclarationTransformers(emitContext, sourceFile, declarationFilePath, declarationMapPath)
+	transformed, diags := e.runDeclarationTransformers(emitContext, sourceFile, declarationFilePath, declarationMapPath)
 
 	for _, elem := range diags {
 		// Add declaration transform diagnostics to emit diagnostics
@@ -242,14 +315,31 @@ func (e *emitter) emitDeclarationFile(sourceFile *ast.SourceFile, declarationFil
 
 	if !e.forceEmit && e.emitOnly != EmitOnlyBuilderSignature && (options.NoEmit == core.TSTrue || e.host.IsEmitBlocked(declarationFilePath)) {
 		e.emitResult.EmitSkipped = true
-		return
+		putEmitContext()
+		return transformedDeclarationFile{}, false
 	}
 
 	declBlocked := len(diags) > 0 && !e.forceEmit && e.emitOnly != EmitOnlyBuilderSignature
 	if declBlocked {
 		e.emitResult.EmitSkipped = true
-		return
+		putEmitContext()
+		return transformedDeclarationFile{}, false
 	}
+
+	return transformedDeclarationFile{
+		sourceFile:          transformed,
+		contentMappedSource: sourceFile,
+		declarationFilePath: declarationFilePath,
+		declarationMapPath:  declarationMapPath,
+		emitDeclarationMap:  emitDeclarationMap,
+		emitContext:         emitContext,
+		putEmitContext:      putEmitContext,
+	}, true
+}
+
+func (e *emitter) printDeclarationFile(declaration transformedDeclarationFile) {
+	defer declaration.putEmitContext()
+	options := e.host.Options()
 
 	printerOptions := printer.PrinterOptions{
 		RemoveComments: options.RemoveComments.IsTrue(),
@@ -258,7 +348,7 @@ func (e *emitter) emitDeclarationFile(sourceFile *ast.SourceFile, declarationFil
 		// Module: 			   options.Module, // NYI
 		// ModuleResolution:   options.ModuleResolution, // NYI
 		Target:          options.GetEmitScriptTarget(),
-		SourceMap:       emitDeclarationMap,
+		SourceMap:       declaration.emitDeclarationMap,
 		InlineSourceMap: options.InlineSourceMap.IsTrue(),
 		// InlineSources:       options.InlineSources.IsTrue(), // ignored, per strada
 		// ExtendedDiagnostics: options.ExtendedDiagnostics.IsTrue(), // NYI
@@ -268,7 +358,8 @@ func (e *emitter) emitDeclarationFile(sourceFile *ast.SourceFile, declarationFil
 
 	// create a printer to print the nodes
 	printHandlers := printer.PrintHandlers{}
-	if spanMap := contentMappedSource.SpanMap(); emitDeclarationMap && spanMap != nil {
+	contentMappedSource := declaration.contentMappedSource
+	if spanMap := contentMappedSource.SpanMap(); declaration.emitDeclarationMap && spanMap != nil {
 		originalSource := newDeclarationMapSource(contentMappedSource)
 		printHandlers.MapSourcePosition = func(source sourcemap.Source, pos int) (sourcemap.Source, int, bool) {
 			if source.FileName() != contentMappedSource.FileName() {
@@ -281,15 +372,15 @@ func (e *emitter) emitDeclarationFile(sourceFile *ast.SourceFile, declarationFil
 			return originalSource, int(mapped), true
 		}
 	}
-	printer := printer.NewPrinter(printerOptions, printHandlers, emitContext)
+	printer := printer.NewPrinter(printerOptions, printHandlers, declaration.emitContext)
 
 	declarationMapOptions := &core.CompilerOptions{
-		SourceMap:  core.IfElse(emitDeclarationMap, core.TSTrue, core.TSFalse),
+		SourceMap:  core.IfElse(declaration.emitDeclarationMap, core.TSTrue, core.TSFalse),
 		SourceRoot: options.SourceRoot,
 		MapRoot:    options.MapRoot,
 		// Explicitly do not pass through either inline option.
 	}
-	e.printSourceFile(declarationFilePath, declarationMapPath, sourceFile, printer, declarationMapOptions, shouldEmitSourceMaps(declarationMapOptions, sourceFile))
+	e.printSourceFile(declaration.declarationFilePath, declaration.declarationMapPath, declaration.sourceFile, printer, declarationMapOptions, shouldEmitSourceMaps(declarationMapOptions, declaration.sourceFile))
 }
 
 type declarationMapSource struct {

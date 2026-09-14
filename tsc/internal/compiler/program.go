@@ -1880,12 +1880,13 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 
 	for _, sourceFile := range sourceFiles {
 		emitter := &emitter{
-			writer:     nil,
-			sourceFile: sourceFile,
-			emitOnly:   options.EmitOnly,
-			forceEmit:  options.ForceEmit,
-			writeFile:  options.WriteFile,
-			tr:         p.opts.Tracing,
+			writer:         nil,
+			sourceFile:     sourceFile,
+			emitOnly:       options.EmitOnly,
+			forceEmit:      options.ForceEmit,
+			writeFile:      options.WriteFile,
+			tr:             p.opts.Tracing,
+			singleThreaded: p.SingleThreaded(),
 		}
 		emitters = append(emitters, emitter)
 		wg.Queue(func() {
