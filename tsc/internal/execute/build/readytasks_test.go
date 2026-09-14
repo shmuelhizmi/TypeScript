@@ -210,6 +210,25 @@ func TestReadyBuildTasksDiamondAndDuplicateReferences(t *testing.T) {
 	}
 }
 
+func TestReadyBuildTasksWorkerQueueOrder(t *testing.T) {
+	t.Parallel()
+	var queue workerQueue
+	for _, request := range []workerRequest{{index: 2}, {index: 0}, {index: 3, resume: true}, {index: 1, resume: true}} {
+		queue.push(request)
+	}
+	var order []workerRequest
+	for {
+		request, ok := queue.pop()
+		if !ok {
+			break
+		}
+		order = append(order, request)
+	}
+	if want := []workerRequest{{index: 1, resume: true}, {index: 3, resume: true}, {index: 0}, {index: 2}}; !slices.Equal(order, want) {
+		t.Fatalf("worker order = %v, want %v", order, want)
+	}
+}
+
 func TestReadyBuildTasksEmpty(t *testing.T) {
 	t.Parallel()
 	executeReadyBuildTasks(nil, 4,
