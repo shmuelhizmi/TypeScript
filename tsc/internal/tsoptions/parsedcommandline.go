@@ -209,12 +209,18 @@ func (p *ParsedCommandLine) getOutputDeclarationAndSourceFileNames() iter.Seq2[s
 }
 
 func (p *ParsedCommandLine) GetOutputFileNames() iter.Seq[string] {
+	return p.GetOutputFileNamesUsing(p)
+}
+
+// GetOutputFileNamesUsing returns the output file names with the paths computed through host
+// rather than through the parsed command line itself.
+func (p *ParsedCommandLine) GetOutputFileNamesUsing(host outputpaths.OutputPathsHost) iter.Seq[string] {
 	return func(yield func(outputName string) bool) {
 		for _, fileName := range p.ParsedConfig.FileNames {
 			if tspath.IsDeclarationFileName(fileName) {
 				continue
 			}
-			jsFileName := outputpaths.GetOutputJSFileName(fileName, p.CompilerOptions(), p)
+			jsFileName := outputpaths.GetOutputJSFileName(fileName, p.CompilerOptions(), host)
 			isJson := tspath.FileExtensionIs(fileName, tspath.ExtensionJson)
 			if jsFileName != "" {
 				if !yield(jsFileName) {
@@ -233,7 +239,7 @@ func (p *ParsedCommandLine) GetOutputFileNames() iter.Seq[string] {
 				continue
 			}
 			if p.CompilerOptions().GetEmitDeclarations() {
-				dtsFileName := outputpaths.GetOutputDeclarationFileNameWorker(fileName, p.CompilerOptions(), p)
+				dtsFileName := outputpaths.GetOutputDeclarationFileNameWorker(fileName, p.CompilerOptions(), host)
 				if dtsFileName != "" {
 					if !yield(dtsFileName) {
 						return
