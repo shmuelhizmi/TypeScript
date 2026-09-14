@@ -4,6 +4,7 @@ import (
 	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/microsoft/TypeScript/tsc/internal/collections"
 	"github.com/microsoft/TypeScript/tsc/internal/tspath"
@@ -248,14 +249,16 @@ type outputBarrier struct {
 	index      int          // position of the project in build order
 	referenced []*BuildTask // the projects the project references, directly or through other references
 	suspend    func(wait func())
-	waiting    sync.Mutex  // one wait at a time: the task's worker is released once
-	settled    atomic.Bool // every earlier project has finished; nothing is left to wait for
+	now        func() time.Time
+	waiting    sync.Mutex    // one wait at a time: the task's worker is released once
+	waited     time.Duration // time spent waiting so far, updated under waiting
+	settled    atomic.Bool   // every earlier project has finished; nothing is left to wait for
 }
 
 var _ vfs.FS = (*outputBarrier)(nil)
 
-func newOutputBarrier(owners *outputOwners, fs vfs.FS, task *BuildTask, suspend func(wait func())) *outputBarrier {
-	b := &outputBarrier{FS: fs, owners: owners, index: owners.index[task], referenced: task.referencedTasks(), suspend: suspend}
+func newOutputBarrier(owners *outputOwners, fs vfs.FS, task *BuildTask, suspend func(wait func()), now func() time.Time) *outputBarrier {
+	b := &outputBarrier{FS: fs, owners: owners, index: owners.index[task], referenced: task.referencedTasks(), suspend: suspend, now: now}
 	b.settle()
 	return b
 }
@@ -316,14 +319,23 @@ func (b *outputBarrier) wait(owners []*BuildTask) {
 		b.waiting.Lock()
 		defer b.waiting.Unlock()
 		if pending = b.unfinished(pending); len(pending) != 0 {
+			start := b.now()
 			b.suspend(func() {
 				for _, task := range pending {
 					<-task.done
 				}
 			})
+			b.waited += b.now().Sub(start)
 		}
 	}
 	b.settle()
+}
+
+// waitedTime returns the time spent waiting for other projects so far.
+func (b *outputBarrier) waitedTime() time.Duration {
+	b.waiting.Lock()
+	defer b.waiting.Unlock()
+	return b.waited
 }
 
 // unfinished returns the projects among owners that are earlier in the build order and have not

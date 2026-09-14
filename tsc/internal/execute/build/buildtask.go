@@ -154,7 +154,7 @@ func (t *BuildTask) report(orchestrator *Orchestrator, configPath tspath.Path, b
 func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path, suspend func(wait func())) {
 	t.barrier = nil
 	if t.overlapsUpstream {
-		t.barrier = newOutputBarrier(orchestrator.outputOwners, orchestrator.host.FS(), t, suspend)
+		t.barrier = newOutputBarrier(orchestrator.outputOwners, orchestrator.host.FS(), t, suspend, orchestrator.opts.Sys.Now)
 	} else {
 		// Wait on upstream tasks to complete
 		t.waitOnUpstream()
@@ -280,6 +280,10 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 		},
 	})
 	compileTimes.ParseTime = orchestrator.opts.Sys.Now().Sub(parseStart)
+	if t.barrier != nil {
+		// Time spent waiting for the outputs of other projects is not parse time.
+		compileTimes.ParseTime -= t.barrier.waitedTime()
+	}
 	changesComputeStart := orchestrator.opts.Sys.Now()
 	t.result.program = incremental.NewProgram(program, oldProgram, orchestrator.host, orchestrator.opts.Sys.Now, orchestrator.opts.Testing != nil)
 	compileTimes.ChangesComputeTime = orchestrator.opts.Sys.Now().Sub(changesComputeStart)
