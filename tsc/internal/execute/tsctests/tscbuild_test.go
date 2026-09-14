@@ -4909,3 +4909,134 @@ func TestBuildWorkspaceSourcesReachedThroughNodeModules(t *testing.T) {
 		test.run(t, "workspaceSourcesReachedThroughNodeModules")
 	}
 }
+
+func TestBuildOverlappingUpstreamProjects(t *testing.T) {
+	t.Parallel()
+	// app references core and client but imports only core, so it can be built while client is
+	// still building; client imports core through the workspace link in node_modules and waits
+	// for core's outputs when its program reads them.
+	const coreIndex = "/home/src/workspaces/solution/packages/core/src/index.ts"
+	const appIndex = "/home/src/workspaces/solution/packages/app/src/index.ts"
+	tsconfig := func(references string) string {
+		return stringtestutil.Dedent(`
+			{
+				"compilerOptions": {
+					"composite": true,
+					"module": "ESNext",
+					"moduleResolution": "Bundler",
+					"target": "ES2022",
+					"outDir": "./dist",
+					"rootDir": "./src",
+					"strict": true
+				},
+				"include": ["src/**/*"],
+				"references": [` + references + `]
+			}`)
+	}
+	packageJson := func(name string) string {
+		return stringtestutil.Dedent(`
+			{
+				"name": "` + name + `",
+				"version": "1.0.0",
+				"type": "module",
+				"exports": {
+					".": {
+						"types": "./dist/index.d.ts",
+						"default": "./dist/index.js"
+					}
+				}
+			}`)
+	}
+	greet := stringtestutil.Dedent(`
+		export function greet(name: string): string {
+			return "hello " + name;
+		}`)
+	greetWithError := stringtestutil.Dedent(`
+		export function greet(name: string): string {
+			const count: number = name;
+			return name;
+		}`)
+	files := func(coreSource string) FileMap {
+		return FileMap{
+			"/home/src/workspaces/solution/package.json": stringtestutil.Dedent(`
+				{
+					"name": "solution",
+					"private": true,
+					"workspaces": ["packages/*"]
+				}`),
+			"/home/src/workspaces/solution/tsconfig.json": stringtestutil.Dedent(`
+				{
+					"files": [],
+					"references": [
+						{ "path": "packages/core" },
+						{ "path": "packages/client" },
+						{ "path": "packages/app" }
+					]
+				}`),
+			"/home/src/workspaces/solution/packages/core/package.json":  packageJson("@ws/core"),
+			"/home/src/workspaces/solution/packages/core/tsconfig.json": tsconfig(""),
+			coreIndex: coreSource,
+			"/home/src/workspaces/solution/packages/client/package.json":  packageJson("@ws/client"),
+			"/home/src/workspaces/solution/packages/client/tsconfig.json": tsconfig(`{ "path": "../core" }`),
+			"/home/src/workspaces/solution/packages/client/src/index.ts": stringtestutil.Dedent(`
+				import { greet } from "@ws/core";
+
+				export const clientMessage: string = greet("client");`),
+			"/home/src/workspaces/solution/packages/app/package.json":  packageJson("@ws/app"),
+			"/home/src/workspaces/solution/packages/app/tsconfig.json": tsconfig(`{ "path": "../core" }, { "path": "../client" }`),
+			appIndex: stringtestutil.Dedent(`
+				import { greet } from "@ws/core";
+
+				export const message: string = greet("app");`),
+			"/home/src/workspaces/solution/node_modules/@ws/core":   vfstest.Symlink("/home/src/workspaces/solution/packages/core"),
+			"/home/src/workspaces/solution/node_modules/@ws/client": vfstest.Symlink("/home/src/workspaces/solution/packages/client"),
+		}
+	}
+	testCases := []*tscInput{
+		{
+			subScenario:     "clean build then rebuilds",
+			files:           files(greet),
+			cwd:             "/home/src/workspaces/solution",
+			commandLineArgs: []string{"--b", "--verbose"},
+			edits: []*tscEdit{
+				noChange,
+				{
+					caption: "change core without changing its declarations",
+					edit: func(sys *TestSys) {
+						sys.replaceFileText(coreIndex, `"hello " + name`, `"hi " + name`)
+					},
+				},
+				{
+					caption: "introduce an error in app",
+					edit: func(sys *TestSys) {
+						sys.replaceFileText(appIndex, "message: string", "message: number")
+					},
+				},
+			},
+		},
+		{
+			subScenario:     "with force",
+			files:           files(greet),
+			cwd:             "/home/src/workspaces/solution",
+			commandLineArgs: []string{"--b", "--verbose", "--force"},
+			edits:           []*tscEdit{noChange},
+		},
+		{
+			subScenario:     "with an error in core",
+			files:           files(greetWithError),
+			cwd:             "/home/src/workspaces/solution",
+			commandLineArgs: []string{"--b", "--verbose"},
+			edits: []*tscEdit{
+				{
+					caption: "fix the error in core",
+					edit: func(sys *TestSys) {
+						sys.replaceFileText(coreIndex, "const count: number = name;", "const count: string = name;")
+					},
+				},
+			},
+		},
+	}
+	for _, test := range testCases {
+		test.run(t, "overlappingUpstreamProjects")
+	}
+}
