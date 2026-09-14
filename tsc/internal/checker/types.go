@@ -1154,6 +1154,10 @@ type UnionOrIntersectionType struct {
 	propertyCache                               ast.SymbolTable
 	propertyCacheWithoutFunctionPropertyAugment ast.SymbolTable
 	resolvedProperties                          []*ast.Symbol
+	// resolvedProperties was listed by getPropertiesOfObjectIntersectionType, which leaves the names a single
+	// constituent declares out of propertyCacheWithoutFunctionPropertyAugment; the first lookup that misses enters them.
+	listedWithoutCaching bool
+	listedNamesCached    bool
 }
 
 func (t *UnionOrIntersectionType) AsUnionOrIntersectionType() *UnionOrIntersectionType { return t }

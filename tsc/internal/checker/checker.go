@@ -19196,6 +19196,7 @@ func (c *Checker) getPropertiesOfUnionOrIntersectionType(t *Type) []*ast.Symbol 
 	if d.resolvedProperties == nil {
 		if props, ok := c.getPropertiesOfObjectIntersectionType(t); ok {
 			d.resolvedProperties = props
+			d.listedWithoutCaching = true
 			return props
 		}
 		var checked collections.Set[string]
@@ -21826,21 +21827,35 @@ func (c *Checker) getPropertyOfUnionOrIntersectionType(t *Type, name string, ski
 // these partial properties when identifying discriminant properties, but otherwise they are filtered out
 // and do not appear to be present in the union type.
 func (c *Checker) getUnionOrIntersectionProperty(t *Type, name string, skipObjectFunctionPropertyAugment bool) *ast.Symbol {
+	d := t.AsUnionOrIntersectionType()
 	var cache ast.SymbolTable
 	if skipObjectFunctionPropertyAugment {
-		cache = ast.GetSymbolTable(&t.AsUnionOrIntersectionType().propertyCacheWithoutFunctionPropertyAugment)
+		cache = ast.GetSymbolTable(&d.propertyCacheWithoutFunctionPropertyAugment)
 	} else {
-		cache = ast.GetSymbolTable(&t.AsUnionOrIntersectionType().propertyCache)
+		cache = ast.GetSymbolTable(&d.propertyCache)
 	}
 	if prop := cache[name]; prop != nil {
 		return prop
+	}
+	if skipObjectFunctionPropertyAugment && d.listedWithoutCaching && !d.listedNamesCached {
+		// The listing left the names a single constituent declares out of the cache, each being that constituent's
+		// own symbol; the first lookup that misses enters them all, so that only absent names take the probe below.
+		d.listedNamesCached = true
+		for _, prop := range d.resolvedProperties {
+			if cache[prop.Name] == nil {
+				cache[prop.Name] = prop
+			}
+		}
+		if prop := cache[name]; prop != nil {
+			return prop
+		}
 	}
 	prop := c.createUnionOrIntersectionProperty(t, name, skipObjectFunctionPropertyAugment)
 	if prop != nil {
 		cache[name] = prop
 		// Propagate an entry from the non-augmented cache to the augmented cache unless the property is partial.
 		if skipObjectFunctionPropertyAugment && prop.CheckFlags&ast.CheckFlagsPartial == 0 {
-			augmentedCache := ast.GetSymbolTable(&t.AsUnionOrIntersectionType().propertyCache)
+			augmentedCache := ast.GetSymbolTable(&d.propertyCache)
 			if augmentedCache[name] == nil {
 				augmentedCache[name] = prop
 			}
