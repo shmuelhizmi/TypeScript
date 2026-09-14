@@ -54,14 +54,24 @@ func (e *emitter) emit() {
 		defer e.tr.Push(tracing.PhaseEmit, "emit", map[string]any{"path": string(e.sourceFile.Path())}, true)()
 	}
 	if jsEmitCountsInstrument {
-		// Lab instrument (TSGO_JS_EMIT_COUNTS): emit sequentially and report a file whose JavaScript emit
-		// created types or symbols on the checker; Program.Emit runs single-threaded under the instrument.
+		// Lab instrument (TSGO_JS_EMIT_COUNTS): emit one file at a time in the whole process (Program.Emit also runs
+		// single-threaded), report a file whose JavaScript emit created types or symbols on the checker, and label
+		// the resolver's calls with the emit phase for the per-method census (checker.WriteEmitCensus).
+		jsEmitCountsMu.Lock()
+		defer jsEmitCountsMu.Unlock()
+		defer checker.EmitCensusPhase.Store(checker.EmitCensusOther)
 		resolver := e.host.GetEmitResolver().(*checker.EmitResolver)
 		typesBefore, symbolsBefore := resolver.TypeAndSymbolCounts()
+		checker.EmitCensusPhase.Store(checker.EmitCensusJavaScript)
 		e.emitJSFile(e.sourceFile, e.paths.JsFilePath(), e.paths.SourceMapFilePath())
 		typesAfter, symbolsAfter := resolver.TypeAndSymbolCounts()
 		if typesAfter != typesBefore || symbolsAfter != symbolsBefore {
 			fmt.Fprintf(os.Stderr, "js-emit-counts\t%s\t%d\t%d\n", e.sourceFile.FileName(), typesAfter-typesBefore, symbolsAfter-symbolsBefore)
+		}
+		if e.emitOnly == EmitOnlyBuilderSignature {
+			checker.EmitCensusPhase.Store(checker.EmitCensusSignature)
+		} else {
+			checker.EmitCensusPhase.Store(checker.EmitCensusDeclarations)
 		}
 		e.emitDeclarationFile(e.sourceFile, e.paths.DeclarationFilePath(), e.paths.DeclarationMapPath())
 	} else if e.emitsConcurrently() {
@@ -79,7 +89,10 @@ func (e *emitter) emit() {
 // would cost more memory than the time it saves.
 const concurrentEmitMinLength = 256 << 10
 
-var jsEmitCountsInstrument = os.Getenv("TSGO_JS_EMIT_COUNTS") != ""
+var (
+	jsEmitCountsInstrument = os.Getenv("TSGO_JS_EMIT_COUNTS") != ""
+	jsEmitCountsMu         sync.Mutex
+)
 
 func (e *emitter) emitsConcurrently() bool {
 	return !e.singleThreaded && e.emitOnly == EmitAll && len(e.paths.JsFilePath()) != 0 && len(e.paths.DeclarationFilePath()) != 0 &&

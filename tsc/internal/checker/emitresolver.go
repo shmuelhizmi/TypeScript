@@ -1,9 +1,14 @@
 package checker
 
 import (
+	"cmp"
+	"fmt"
+	"io"
 	"maps"
+	"os"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/binder"
@@ -15,6 +20,77 @@ import (
 )
 
 var _ printer.EmitResolver = (*EmitResolver)(nil)
+
+// Lab instrument (TSGO_JS_EMIT_COUNTS): the calls of each resolver method during each emit phase and the types and
+// symbols the checker created while the method held the checker's lock.
+
+var emitCensusEnabled = os.Getenv("TSGO_JS_EMIT_COUNTS") != ""
+
+const (
+	EmitCensusOther int32 = iota
+	EmitCensusJavaScript
+	EmitCensusDeclarations
+	EmitCensusSignature
+)
+
+var emitCensusPhaseNames = [...]string{"other", "js", "dts", "signature"}
+
+// EmitCensusPhase is the emit phase in progress; the instrument serializes every emit, so one phase runs at a time.
+var EmitCensusPhase atomic.Int32
+
+type emitCensusKey struct {
+	phase  int32
+	method string
+}
+
+type emitCensusCounts struct {
+	calls, types, symbols, creatingCalls uint64
+}
+
+var (
+	emitCensusMu sync.Mutex
+	emitCensus   = map[emitCensusKey]*emitCensusCounts{}
+)
+
+func (r *EmitResolver) census(method string) func() {
+	if !emitCensusEnabled {
+		return func() {}
+	}
+	phase := EmitCensusPhase.Load()
+	types, symbols := r.checker.TypeCount, r.checker.SymbolCount
+	return func() {
+		createdTypes, createdSymbols := uint64(r.checker.TypeCount-types), uint64(r.checker.SymbolCount-symbols)
+		emitCensusMu.Lock()
+		defer emitCensusMu.Unlock()
+		counts := emitCensus[emitCensusKey{phase, method}]
+		if counts == nil {
+			counts = &emitCensusCounts{}
+			emitCensus[emitCensusKey{phase, method}] = counts
+		}
+		counts.calls++
+		counts.types += createdTypes
+		counts.symbols += createdSymbols
+		if createdTypes != 0 || createdSymbols != 0 {
+			counts.creatingCalls++
+		}
+	}
+}
+
+// WriteEmitCensus prints one line per phase and method: calls, calls that created types or symbols, types, symbols.
+func WriteEmitCensus(w io.Writer) {
+	if !emitCensusEnabled {
+		return
+	}
+	emitCensusMu.Lock()
+	defer emitCensusMu.Unlock()
+	keys := slices.SortedFunc(maps.Keys(emitCensus), func(a, b emitCensusKey) int {
+		return cmp.Or(cmp.Compare(a.phase, b.phase), cmp.Compare(emitCensus[b].types, emitCensus[a].types), cmp.Compare(a.method, b.method))
+	})
+	for _, key := range keys {
+		counts := emitCensus[key]
+		fmt.Fprintf(w, "js-emit-method\t%s\t%s\t%d\t%d\t%d\t%d\n", emitCensusPhaseNames[key.phase], key.method, counts.calls, counts.creatingCalls, counts.types, counts.symbols)
+	}
+}
 
 // Links for jsx
 type JSXLinks struct {
@@ -53,18 +129,21 @@ func newEmitResolver(checker *Checker) *EmitResolver {
 func (r *EmitResolver) GetJsxFactoryEntity(location *ast.Node) *ast.Node {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetJsxFactoryEntity")()
 	return r.checker.getJsxFactoryEntity(location)
 }
 
 func (r *EmitResolver) GetJsxFragmentFactoryEntity(location *ast.Node) *ast.Node {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetJsxFragmentFactoryEntity")()
 	return r.checker.getJsxFragmentFactoryEntity(location)
 }
 
 func (r *EmitResolver) IsOptionalParameter(node *ast.Node) bool {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsOptionalParameter")()
 	return r.isOptionalParameter(node)
 }
 
@@ -79,6 +158,7 @@ func (r *EmitResolver) IsLateBound(node *ast.Node) bool {
 	}
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsLateBound")()
 	symbol := r.checker.getSymbolOfDeclaration(node)
 	if symbol == nil {
 		return false
@@ -93,6 +173,7 @@ func (r *EmitResolver) GetEnumMemberValue(node *ast.Node) evaluator.Result {
 	}
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetEnumMemberValue")()
 
 	r.checker.computeEnumMemberValues(node.Parent)
 	if !r.checker.enumMemberLinks.Has(node) {
@@ -105,6 +186,7 @@ func (r *EmitResolver) IsDeclarationVisible(node *ast.Node) bool {
 	// Only lock on external API func to prevent deadlocks
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsDeclarationVisible")()
 	return r.isDeclarationVisible(node)
 }
 
@@ -236,6 +318,7 @@ func (r *EmitResolver) determineIfDeclarationIsVisible(node *ast.Node) bool {
 func (r *EmitResolver) PrecalculateDeclarationEmitVisibility(file *ast.SourceFile) {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("PrecalculateDeclarationEmitVisibility")()
 	if r.declarationFileLinks.Get(file.AsNode()).aliasesMarked {
 		return
 	}
@@ -334,6 +417,7 @@ func getMeaningOfEntityNameReference(entityName *ast.Node) ast.SymbolFlags {
 func (r *EmitResolver) IsEntityNameVisible(entityName *ast.Node, enclosingDeclaration *ast.Node) printer.SymbolAccessibilityResult {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsEntityNameVisible")()
 	return r.isEntityNameVisible(entityName, enclosingDeclaration, true)
 }
 
@@ -475,6 +559,7 @@ func (r *EmitResolver) IsImplementationOfOverload(node *ast.SignatureDeclaration
 		}
 		r.checkerMu.Lock()
 		defer r.checkerMu.Unlock()
+		defer r.census("IsImplementationOfOverload")()
 		symbol := r.checker.getSymbolOfDeclaration(node)
 		signaturesOfSymbol := r.checker.getSignaturesOfSymbol(symbol)
 		// If this function body corresponds to function with multiple signature, it is implementation of overload
@@ -524,6 +609,7 @@ func (r *EmitResolver) IsImportRequiredByAugmentation(decl *ast.ImportDeclaratio
 	}
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsImportRequiredByAugmentation")()
 	exports := r.checker.getExportsOfModule(file.Symbol)
 	for s := range maps.Values(exports) {
 		merged := r.checker.getMergedSymbol(s)
@@ -553,6 +639,7 @@ func (r *EmitResolver) IsDefinitelyReferenceToGlobalSymbolObject(node *ast.Node)
 		}
 		r.checkerMu.Lock()
 		defer r.checkerMu.Unlock()
+		defer r.census("IsDefinitelyReferenceToGlobalSymbolObject")()
 		// Exactly `Symbol.something` and `Symbol` either does not resolve or definitely resolves to the global Symbol
 		return r.checker.getResolvedSymbol(node.Expression()) == r.checker.getGlobalSymbol("Symbol", ast.SymbolFlagsValue|ast.SymbolFlagsExportValue, nil /*diagnostic*/)
 	}
@@ -561,6 +648,7 @@ func (r *EmitResolver) IsDefinitelyReferenceToGlobalSymbolObject(node *ast.Node)
 	}
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsDefinitelyReferenceToGlobalSymbolObject")()
 	// Exactly `globalThis.Symbol.something` and `globalThis` resolves to the global `globalThis`
 	return r.checker.getResolvedSymbol(node.Expression().Expression()) == r.checker.globalThisSymbol
 }
@@ -571,6 +659,7 @@ func (r *EmitResolver) RequiresAddingImplicitUndefined(declaration *ast.Node, sy
 	}
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("RequiresAddingImplicitUndefined")()
 	return r.requiresAddingImplicitUndefined(declaration, symbol, enclosingDeclaration)
 }
 
@@ -648,6 +737,7 @@ func (r *EmitResolver) IsLiteralConstDeclaration(node *ast.Node) bool {
 	if isDeclarationReadonly(node) || ast.IsVariableDeclaration(node) && ast.IsVarConst(node) {
 		r.checkerMu.Lock()
 		defer r.checkerMu.Unlock()
+		defer r.census("IsLiteralConstDeclaration")()
 		s := r.checker.getSymbolOfDeclaration(node)
 		if s == nil {
 			return false
@@ -675,6 +765,7 @@ func (r *EmitResolver) IsExpandoFunctionDeclarationUnsafe(node *ast.Node) bool {
 func (r *EmitResolver) IsExpandoFunctionDeclaration(node *ast.Node) bool {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsExpandoFunctionDeclaration")()
 	return r.IsExpandoFunctionDeclarationUnsafe(node)
 }
 
@@ -709,6 +800,7 @@ func (r *EmitResolver) IsReferencedAliasDeclaration(node *ast.Node) bool {
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsReferencedAliasDeclaration")()
 
 	if ast.IsAliasSymbolDeclaration(node) {
 		if symbol := c.getSymbolOfDeclaration(node); symbol != nil {
@@ -735,6 +827,7 @@ func (r *EmitResolver) IsValueAliasDeclaration(node *ast.Node) bool {
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsValueAliasDeclaration")()
 
 	return r.isValueAliasDeclarationWorker(node)
 }
@@ -808,6 +901,7 @@ func (r *EmitResolver) IsTopLevelValueImportEqualsWithEntityName(node *ast.Node)
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsTopLevelValueImportEqualsWithEntityName")()
 
 	return r.isAliasResolvedToValue(c.getSymbolOfDeclaration(node), false /*excludeTypeOnlyValues*/)
 }
@@ -818,6 +912,7 @@ func (r *EmitResolver) MarkLinkedReferencesRecursively(file *ast.SourceFile) {
 	}
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("MarkLinkedReferencesRecursively")()
 
 	if file != nil {
 		if r.checker.sourceFileLinks.Get(file).typeChecked {
@@ -848,6 +943,7 @@ func (r *EmitResolver) GetExternalModuleFileFromDeclaration(declaration *ast.Nod
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetExternalModuleFileFromDeclaration")()
 	return r.checker.getExternalModuleFileFromDeclaration(declaration)
 }
 
@@ -874,6 +970,7 @@ func (r *EmitResolver) GetReferencedExportContainer(node *ast.IdentifierNode, pr
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetReferencedExportContainer")()
 
 	return r.getReferenceResolver().GetReferencedExportContainer(node, prefixLocals)
 }
@@ -881,12 +978,14 @@ func (r *EmitResolver) GetReferencedExportContainer(node *ast.IdentifierNode, pr
 func (r *EmitResolver) SetReferencedImportDeclaration(node *ast.IdentifierNode, ref *ast.Declaration) {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("SetReferencedImportDeclaration")()
 	r.jsxLinks.Get(node).importRef = ref
 }
 
 func (r *EmitResolver) GetReferencedImportDeclaration(node *ast.IdentifierNode) *ast.Declaration {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetReferencedImportDeclaration")()
 	if !ast.IsParseTreeNode(node) {
 		return r.jsxLinks.Get(node).importRef
 	}
@@ -905,6 +1004,7 @@ func (r *EmitResolver) GetReferencedValueDeclaration(node *ast.IdentifierNode) *
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetReferencedValueDeclaration")()
 
 	return r.getReferenceResolver().GetReferencedValueDeclaration(node)
 }
@@ -920,6 +1020,7 @@ func (r *EmitResolver) GetReferencedValueDeclarations(node *ast.IdentifierNode) 
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetReferencedValueDeclarations")()
 
 	return r.getReferenceResolver().GetReferencedValueDeclarations(node)
 }
@@ -928,6 +1029,7 @@ func (r *EmitResolver) GetReferencedValueDeclarations(node *ast.IdentifierNode) 
 func (r *EmitResolver) IsNameResolvable(location *ast.Node, name string) bool {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsNameResolvable")()
 
 	symbol := r.checker.resolveName(location, name, ast.SymbolFlagsValue|ast.SymbolFlagsType|ast.SymbolFlagsNamespace, nil /*nameNotFoundMessage*/, false /*isUse*/, false /*excludeGlobals*/)
 	return symbol != nil
@@ -940,6 +1042,7 @@ func (r *EmitResolver) GetElementAccessExpressionName(expression *ast.ElementAcc
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetElementAccessExpressionName")()
 
 	return r.getReferenceResolver().GetElementAccessExpressionName(expression)
 }
@@ -951,6 +1054,7 @@ func (r *EmitResolver) GetReferencedMemberValueDeclaration(node *ast.Node) *ast.
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetReferencedMemberValueDeclaration")()
 
 	return r.getReferenceResolver().GetReferencedMemberValueDeclaration(node)
 }
@@ -967,6 +1071,7 @@ func (r *EmitResolver) CreateReturnTypeOfSignatureDeclaration(emitContext *print
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("CreateReturnTypeOfSignatureDeclaration")()
 	requestNodeBuilder := NewNodeBuilder(r.checker, emitContext) // TODO: cache per-context
 	return requestNodeBuilder.SerializeReturnTypeForSignature(original, enclosingDeclaration, flags, internalFlags, tracker)
 }
@@ -979,6 +1084,7 @@ func (r *EmitResolver) CreateTypeParametersOfSignatureDeclaration(emitContext *p
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("CreateTypeParametersOfSignatureDeclaration")()
 	requestNodeBuilder := NewNodeBuilder(r.checker, emitContext) // TODO: cache per-context
 	return requestNodeBuilder.SerializeTypeParametersForSignature(original, enclosingDeclaration, flags, internalFlags, tracker)
 }
@@ -991,6 +1097,7 @@ func (r *EmitResolver) CreateTypeOfDeclaration(emitContext *printer.EmitContext,
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("CreateTypeOfDeclaration")()
 	requestNodeBuilder := NewNodeBuilder(r.checker, emitContext) // TODO: cache per-context
 	// // Get type of the symbol if this is the valid symbol otherwise get type at location
 	symbol := r.checker.getSymbolOfDeclaration(declaration)
@@ -1000,7 +1107,9 @@ func (r *EmitResolver) CreateTypeOfDeclaration(emitContext *printer.EmitContext,
 func (r *EmitResolver) CreateLiteralConstValue(emitContext *printer.EmitContext, node *ast.Node, tracker nodebuilder.SymbolTracker) *ast.Node {
 	node = emitContext.ParseNode(node)
 	r.checkerMu.Lock()
+	done := r.census("CreateLiteralConstValue")
 	t := r.checker.getTypeOfSymbol(r.checker.getSymbolOfDeclaration(node))
+	done()
 	r.checkerMu.Unlock()
 	if t == nil {
 		return nil // TODO: How!? Maybe this should be a panic. All symbols should have a type.
@@ -1010,6 +1119,7 @@ func (r *EmitResolver) CreateLiteralConstValue(emitContext *printer.EmitContext,
 	if t.flags&TypeFlagsEnumLike != 0 {
 		r.checkerMu.Lock()
 		defer r.checkerMu.Unlock()
+		defer r.census("CreateLiteralConstValue")()
 		requestNodeBuilder := NewNodeBuilder(r.checker, emitContext) // TODO: cache per-context
 		enumResult = requestNodeBuilder.SymbolToExpression(t.symbol, ast.SymbolFlagsValue, node, nodebuilder.FlagsNone, nodebuilder.InternalFlagsNone, tracker)
 		// What about regularTrueType/regularFalseType - since those aren't fresh, we never make initializers from them
@@ -1066,6 +1176,7 @@ func (r *EmitResolver) CreateTypeOfExpression(emitContext *printer.EmitContext, 
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("CreateTypeOfExpression")()
 	requestNodeBuilder := NewNodeBuilder(r.checker, emitContext) // TODO: cache per-context
 	return requestNodeBuilder.SerializeTypeForExpression(expression, enclosingDeclaration, flags|nodebuilder.FlagsMultilineObjectLiterals, internalFlags, tracker)
 }
@@ -1074,6 +1185,7 @@ func (r *EmitResolver) CreateLateBoundIndexSignatures(emitContext *printer.EmitC
 	container = emitContext.ParseNode(container)
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("CreateLateBoundIndexSignatures")()
 
 	sym := container.Symbol()
 	staticInfos := r.checker.getIndexInfosOfType(r.checker.getTypeOfSymbol(sym))
@@ -1164,6 +1276,7 @@ func (r *EmitResolver) GetEffectiveDeclarationFlags(node *ast.Node, flags ast.Mo
 	// node = emitContext.ParseNode(node)
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetEffectiveDeclarationFlags")()
 	return r.checker.GetEffectiveDeclarationFlags(node, flags)
 }
 
@@ -1171,6 +1284,7 @@ func (r *EmitResolver) GetConstantValue(node *ast.Node) any {
 	// node = emitContext.ParseNode(node)
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetConstantValue")()
 	return r.checker.GetConstantValue(node)
 }
 
@@ -1179,6 +1293,7 @@ func (r *EmitResolver) GetTypeReferenceSerializationKind(typeName *ast.Node, loc
 	// location = emitContext.ParseNode(location)
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("GetTypeReferenceSerializationKind")()
 
 	if typeName == nil || location == nil {
 		return printer.TypeReferenceSerializationKindUnknown
@@ -1285,6 +1400,7 @@ func (r *EmitResolver) TryJSTypeNodeToTypeNode(emitContext *printer.EmitContext,
 	typeNode = emitContext.ParseNode(typeNode)
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("TryJSTypeNodeToTypeNode")()
 
 	requestNodeBuilder := NewNodeBuilder(r.checker, emitContext) // TODO: cache per-context
 	return requestNodeBuilder.TryJSTypeNodeToTypeNode(typeNode, enclosingDeclaration, flags, internalFlags, tracker)
@@ -1308,6 +1424,7 @@ func (r *EmitResolver) IsThisPropertyAssignmentDeclarationRedundant(node *ast.No
 
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
+	defer r.census("IsThisPropertyAssignmentDeclarationRedundant")()
 
 	s := r.checker.getSymbolOfDeclaration(node)
 	if s == nil || s.Parent == nil {
