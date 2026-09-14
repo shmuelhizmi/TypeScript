@@ -812,6 +812,11 @@ func (r *EmitResolver) MarkLinkedReferencesRecursively(file *ast.SourceFile) {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
 
+	if file != nil && r.checker.sourceFileLinks.Get(file).typeChecked {
+		// Checking the file marked every reference it contains, with the types in hand; marking only
+		// ever sets a flag, so repeating it changes nothing.
+		return
+	}
 	if file != nil {
 		var visit ast.Visitor
 		visit = func(n *ast.Node) bool {
