@@ -59,6 +59,10 @@ type BuildTask struct {
 	downStream []*BuildTask // Only set and used in watch mode
 	status     *upToDateStatus
 	done       chan struct{}
+	// overlapsUpstream is set when the task runs while the projects it references may still be
+	// building; see Orchestrator.canOverlapUpstream. barrier then guards its file observations.
+	overlapsUpstream bool
+	barrier          *outputBarrier
 
 	// task reporting
 	result       *taskResult
@@ -147,9 +151,14 @@ func (t *BuildTask) report(orchestrator *Orchestrator, configPath tspath.Path, b
 	close(t.reportDone)
 }
 
-func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path) {
-	// Wait on upstream tasks to complete
-	t.waitOnUpstream()
+func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path, suspend func(wait func())) {
+	t.barrier = nil
+	if t.overlapsUpstream {
+		t.barrier = newOutputBarrier(orchestrator.outputOwners, orchestrator.host.FS(), t, suspend)
+	} else {
+		// Wait on upstream tasks to complete
+		t.waitOnUpstream()
+	}
 	if t.pending.Load() {
 		t.status = t.getUpToDateStatus(orchestrator, path)
 		t.reportUpToDateStatus(orchestrator)
@@ -180,6 +189,10 @@ func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path) {
 	// projects finish. Tests keep it for the OnProgram callback.
 	if orchestrator.opts.Testing == nil {
 		t.result.program = nil
+	}
+	if t.barrier != nil {
+		// Downstream projects rely on every referenced project having finished when this one has.
+		t.barrier.waitForUpstream()
 	}
 	t.unblockDownstream()
 }
@@ -250,6 +263,7 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 	}
 	compilerHost := &compilerHost{
 		host:                 orchestrator.host,
+		barrier:              t.barrier,
 		trace:                tsc.GetTraceWithWriterFromSys(&t.result.builder, orchestrator.opts.Command.Locale(), orchestrator.opts.Testing),
 		contentMapperProject: contentMapperProject,
 	}
@@ -280,6 +294,12 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 		Writer:             &t.result.builder,
 		WriteFile: func(fileName, text string, data *compiler.WriteFileData) error {
 			return t.writeFile(orchestrator, fileName, text, data)
+		},
+		BeforeEmit: func() {
+			if t.barrier != nil {
+				// Outputs are written after those of every referenced project, as when waiting upfront.
+				t.barrier.waitForUpstream()
+			}
 		},
 		CompileTimes:       &compileTimes,
 		Testing:            orchestrator.opts.Testing,

@@ -12,6 +12,7 @@ import (
 
 type compilerHost struct {
 	host                 *host
+	barrier              *outputBarrier // set when the project overlaps the projects it references
 	trace                func(msg *diagnostics.Message, args ...any)
 	contentMapperProject contentmapper.Project
 }
@@ -19,6 +20,9 @@ type compilerHost struct {
 var _ compiler.CompilerHost = (*compilerHost)(nil)
 
 func (h *compilerHost) FS() vfs.FS {
+	if h.barrier != nil {
+		return h.barrier
+	}
 	return h.host.FS()
 }
 
@@ -35,6 +39,9 @@ func (h *compilerHost) Trace(msg *diagnostics.Message, args ...any) {
 }
 
 func (h *compilerHost) GetSourceFile(opts ast.SourceFileParseOptions) *ast.SourceFile {
+	if h.barrier != nil {
+		h.barrier.observeFile(opts.FileName)
+	}
 	return h.host.GetSourceFile(opts)
 }
 
