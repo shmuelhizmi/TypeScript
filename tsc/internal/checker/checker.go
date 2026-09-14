@@ -665,6 +665,8 @@ type Checker struct {
 	intersectionTypes                           map[CacheHashKey]*Type
 	propertiesTypes                             map[PropertiesTypesKey]*Type
 	diagnostics                                 ast.DiagnosticsCollection
+	emitWalk                                    bool // lab instrument: the emit-time marking walk is running on a type-checked file
+	emitWalkFlips                               int  // lab instrument: alias flags the walk flipped
 	suggestionDiagnostics                       ast.DiagnosticsCollection
 	symbolArena                                 core.Arena[ast.Symbol]
 	signatureArena                              core.Arena[Signature]
@@ -29314,6 +29316,9 @@ func (c *Checker) markAliasReferenced(symbol *ast.Symbol, location *ast.Node) {
 func (c *Checker) markAliasSymbolAsReferenced(symbol *ast.Symbol) {
 	links := c.aliasSymbolLinks.Get(symbol)
 	if !links.referenced {
+		if c.emitWalk {
+			c.emitWalkFlips++
+		}
 		links.referenced = true
 		node := c.getDeclarationOfAliasSymbol(symbol)
 		if node == nil {

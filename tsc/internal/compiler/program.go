@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -1914,6 +1915,9 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 
 	// wait for emit to complete
 	wg.RunAndWait()
+	if os.Getenv("TSGO_COUNT_EMIT_WALK") != "" {
+		fmt.Fprintf(os.Stderr, "emit-walk\tfiles\t%d\tflips\t%d\tdiagnostics\t%d\ttypes\t%d\n", checker.EmitWalkCounts.Files.Load(), checker.EmitWalkCounts.Flips.Load(), checker.EmitWalkCounts.Diagnostics.Load(), checker.EmitWalkCounts.Types.Load())
+	}
 
 	// collect results from emit, preserving input order
 	return CombineEmitResults(core.Map(emitters, func(e *emitter) *EmitResult {

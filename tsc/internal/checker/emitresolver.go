@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"sync/atomic"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/binder"
@@ -29,6 +30,12 @@ type DeclarationLinks struct {
 
 type DeclarationFileLinks struct {
 	aliasesMarked bool // if file has had alias visibility marked
+}
+
+// EmitWalkCounts is a lab instrument: what MarkLinkedReferencesRecursively changed on files their checker had
+// type-checked, over the whole process.
+var EmitWalkCounts struct {
+	Files, Flips, Diagnostics, Types atomic.Int64
 }
 
 type EmitResolver struct {
@@ -812,6 +819,19 @@ func (r *EmitResolver) MarkLinkedReferencesRecursively(file *ast.SourceFile) {
 	r.checkerMu.Lock()
 	defer r.checkerMu.Unlock()
 
+	if file != nil && r.checker.sourceFileLinks.Get(file).typeChecked {
+		// Lab instrument: count what the walk changes on a file this checker has type-checked.
+		c := r.checker
+		flips, diagnostics, types := c.emitWalkFlips, len(c.diagnostics.GetDiagnostics()), c.TypeCount
+		c.emitWalk = true
+		defer func() {
+			c.emitWalk = false
+			EmitWalkCounts.Files.Add(1)
+			EmitWalkCounts.Flips.Add(int64(c.emitWalkFlips - flips))
+			EmitWalkCounts.Diagnostics.Add(int64(len(c.diagnostics.GetDiagnostics()) - diagnostics))
+			EmitWalkCounts.Types.Add(int64(c.TypeCount - types))
+		}()
+	}
 	if file != nil {
 		var visit ast.Visitor
 		visit = func(n *ast.Node) bool {
