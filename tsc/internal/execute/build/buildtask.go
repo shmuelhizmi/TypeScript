@@ -149,9 +149,12 @@ func (t *BuildTask) report(orchestrator *Orchestrator, configPath tspath.Path, b
 
 func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path) {
 	// Wait on upstream tasks to complete
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "wait-upstream", "")
 	t.waitOnUpstream()
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "upstream-done", "")
 	if t.pending.Load() {
 		t.status = t.getUpToDateStatus(orchestrator, path)
+		orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "status", strconv.Itoa(int(t.status.kind)))
 		t.reportUpToDateStatus(orchestrator)
 		if !t.handleStatusThatDoesntRequireBuild(orchestrator) {
 			t.compileAndEmit(orchestrator, path)
@@ -181,6 +184,7 @@ func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path) {
 	if orchestrator.opts.Testing == nil {
 		t.result.program = nil
 	}
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "finished", "")
 	t.unblockDownstream()
 }
 
@@ -266,6 +270,7 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 		},
 	})
 	compileTimes.ParseTime = orchestrator.opts.Sys.Now().Sub(parseStart)
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "parsed", strconv.Itoa(len(program.SourceFiles())))
 	changesComputeStart := orchestrator.opts.Sys.Now()
 	t.result.program = incremental.NewProgram(program, oldProgram, orchestrator.host, orchestrator.opts.Sys.Now, orchestrator.opts.Testing != nil)
 	compileTimes.ChangesComputeTime = orchestrator.opts.Sys.Now().Sub(changesComputeStart)
@@ -285,6 +290,7 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 		Testing:            orchestrator.opts.Testing,
 		TestingMTimesCache: orchestrator.host.mTimes,
 	})
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "emitted", "")
 	t.result.exitStatus = result.Status
 	t.result.statistics = statistics
 	t.packageJsons = t.result.program.PackageJsonLookupPaths()
