@@ -19221,23 +19221,20 @@ func (c *Checker) getPropertiesOfUnionOrIntersectionType(t *Type) []*ast.Symbol 
 	return d.resolvedProperties
 }
 
-// getPropertiesOfObjectIntersectionType enumerates the properties of an intersection whose constituents are all plain
-// object types: not mapped types and not module types, so that each constituent is its own apparent type and a
-// by-name lookup on it finds exactly the symbols its property list holds. A name that a single constituent declares
-// is listed as that constituent's own symbol: getUnionOrIntersectionProperty returns the same symbol for it after
-// probing every constituent and caching the result, so nothing is synthesized and a later lookup recomputes the same
-// symbol. A name that two or more distinct symbols declare is synthesized as before, in the same order. The second
-// result is false for any other intersection, which is enumerated as before.
+// getPropertiesOfObjectIntersectionType enumerates the properties of an intersection whose constituents are all
+// object types that are their own apparent type and not module types, so that a by-name lookup on a constituent
+// finds exactly the symbols its property list holds. A name that a single constituent declares is listed as that
+// constituent's own symbol: getUnionOrIntersectionProperty returns the same symbol for it after probing every
+// constituent and caching the result, so nothing is synthesized and a later lookup recomputes the same symbol. A
+// name that two or more distinct symbols declare is synthesized as before, in the same order. The apparent type and
+// the members of each constituent are resolved in the order the general enumeration resolves them, so that the
+// types created along the way are the same and in the same order; the second result is false for any other
+// intersection, which is enumerated as before.
 func (c *Checker) getPropertiesOfObjectIntersectionType(t *Type) ([]*ast.Symbol, bool) {
 	if t.flags&TypeFlagsIntersection == 0 {
 		return nil, false
 	}
 	types := t.Types()
-	for _, current := range types {
-		if current.flags&TypeFlagsObject == 0 || current.objectFlags&ObjectFlagsMapped != 0 || current.symbol != nil && current.symbol.Flags&ast.SymbolFlagsValueModule != 0 {
-			return nil, false
-		}
-	}
 	type declaredName struct {
 		name   string
 		symbol *ast.Symbol // the first symbol that declares the name
@@ -19246,6 +19243,9 @@ func (c *Checker) getPropertiesOfObjectIntersectionType(t *Type) ([]*ast.Symbol,
 	var names []declaredName
 	var index map[string]int
 	for i, current := range types {
+		if current.flags&TypeFlagsObject == 0 || current.symbol != nil && current.symbol.Flags&ast.SymbolFlagsValueModule != 0 || c.getApparentType(current) != current {
+			return nil, false
+		}
 		props := c.getPropertiesOfObjectType(current)
 		if i == 0 {
 			names = make([]declaredName, 0, len(props))
