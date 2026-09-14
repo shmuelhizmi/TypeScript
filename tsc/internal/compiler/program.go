@@ -1879,15 +1879,18 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 	sourceFiles := p.getSourceFilesToEmit(options.TargetSourceFiles, forceDtsEmit, forceJsEmit)
 
 	for _, sourceFile := range sourceFiles {
-		emitter := &emitter{
+		emitters = append(emitters, &emitter{
 			writer:     nil,
 			sourceFile: sourceFile,
 			emitOnly:   options.EmitOnly,
 			forceEmit:  options.ForceEmit,
 			writeFile:  options.WriteFile,
 			tr:         p.opts.Tracing,
-		}
-		emitters = append(emitters, emitter)
+		})
+	}
+	for _, index := range p.emitOrder(sourceFiles) {
+		emitter := emitters[index]
+		sourceFile := emitter.sourceFile
 		wg.Queue(func() {
 			host, done := newEmitHost(ctx, p, sourceFile)
 			defer done()
@@ -1919,6 +1922,38 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 	return CombineEmitResults(core.Map(emitters, func(e *emitter) *EmitResult {
 		return &e.emitResult
 	}))
+}
+
+// emitOrder returns the positions of sourceFiles in the order their emit is queued: round-robin
+// over the checkers the files are associated with, so that the emits running at any moment take
+// different checker locks. Files adjacent in program order tend to share a checker.
+func (p *Program) emitOrder(sourceFiles []*ast.SourceFile) []int {
+	order := make([]int, 0, len(sourceFiles))
+	pool, ok := p.checkerPool.(*checkerPool)
+	if !ok || pool.fileAssociations == nil {
+		for i := range sourceFiles {
+			order = append(order, i)
+		}
+		return order
+	}
+	checkerIndex := make(map[*checker.Checker]int, len(pool.checkers))
+	for i, c := range pool.checkers {
+		checkerIndex[c] = i
+	}
+	buckets := make([][]int, len(pool.checkers))
+	for i, file := range sourceFiles {
+		bucket := checkerIndex[pool.fileAssociations[file]]
+		buckets[bucket] = append(buckets[bucket], i)
+	}
+	for len(order) < len(sourceFiles) {
+		for b := range buckets {
+			if len(buckets[b]) != 0 {
+				order = append(order, buckets[b][0])
+				buckets[b] = buckets[b][1:]
+			}
+		}
+	}
+	return order
 }
 
 func CombineEmitResults(results []*EmitResult) *EmitResult {
