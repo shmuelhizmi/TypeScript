@@ -56,6 +56,7 @@ type FlowState struct {
 	referenceDependent int
 	incompleteShared   int
 	typeCount          uint32
+	maxDepth           int // deepest recursion reached in the subtree being computed
 }
 
 func (c *Checker) getFlowState() *FlowState {
@@ -139,8 +140,12 @@ func (c *Checker) getFlowTypeOfReferenceEx(reference *ast.Node, declaredType *Ty
 	return resultType
 }
 
+// flowDepthLimit is the number of recursive getTypeAtFlowNode invocations after which control
+// flow analysis gives up in the containing function or module body.
+const flowDepthLimit = 2000
+
 func (c *Checker) getTypeAtFlowNode(f *FlowState, flow *ast.FlowNode) FlowType {
-	if f.depth == 2000 {
+	if f.depth == flowDepthLimit {
 		// We have made 2000 recursive invocations. To avoid overflowing the call stack we report an error
 		// and disable further control flow analysis in the containing function or module body.
 		if tr := c.tracer; tr != nil {
@@ -154,8 +159,13 @@ func (c *Checker) getTypeAtFlowNode(f *FlowState, flow *ast.FlowNode) FlowType {
 		return FlowType{t: c.errorType}
 	}
 	f.depth++
-	if s := c.flowMemoStats; s != nil && int64(f.depth) > s.counts[flowMemoMaxDepth] {
-		s.counts[flowMemoMaxDepth] = int64(f.depth)
+	if c.flowMemoStats != nil {
+		if f.depth > f.maxDepth {
+			f.maxDepth = f.depth
+		}
+		if int64(f.depth) > c.flowMemoStats.counts[flowMemoMaxDepth] {
+			c.flowMemoStats.counts[flowMemoMaxDepth] = int64(f.depth)
+		}
 	}
 	var sharedFlow *ast.FlowNode
 	sharedReferenceDependent := 0

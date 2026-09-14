@@ -55,6 +55,8 @@ const (
 	flowMemoBlockedCycle
 	flowMemoBlockedDiagnostic
 	flowMemoBlockedFresh
+	flowMemoDepthRefusedHits
+	flowMemoMaxBound
 	flowMemoCountLen
 )
 
@@ -64,11 +66,21 @@ var flowMemoCountNames = [flowMemoCountLen]string{
 	"hits", "hits_with_incomplete_shared", "outermost_hits", "saved_visits", "saved_ns",
 	"mismatch_type", "mismatch_incomplete", "stores",
 	"blocked_incomplete", "blocked_disabled", "blocked_reference", "blocked_cycle", "blocked_diagnostic", "blocked_fresh",
+	"depth_refused_hits", "max_bound",
 }
 
 // flowMemoStats is the per-checker state of the instrument; it is nil when the instrument is off.
+// flowMemoEntry is a memoized flow type and the deepest additional recursion its computation
+// needed. Taking the entry skips that recursion, so it is taken only when the recursion could
+// not have reached the depth limit: the limit then trips exactly where it would without the
+// memo (the memo only ever grows, so a later computation cannot recurse deeper than the bound).
+type flowMemoEntry struct {
+	t          *Type
+	depthBound int32
+}
+
 type flowMemoStats struct {
-	memo            map[FlowLoopKey]*Type
+	memo            map[FlowLoopKey]flowMemoEntry
 	shadowDepth     int // > 0 while a hit is being recomputed in shadow mode
 	invocationDepth int // nesting of getFlowTypeOfReferenceEx
 	cycles          int // type resolution cycles found
@@ -89,7 +101,7 @@ func newFlowMemoStats() *flowMemoStats {
 	if flowMemoMode == "" {
 		return nil
 	}
-	s := &flowMemoStats{memo: make(map[FlowLoopKey]*Type), counts: new(flowMemoCounts)}
+	s := &flowMemoStats{memo: make(map[FlowLoopKey]flowMemoEntry), counts: new(flowMemoCounts)}
 	flowMemoStatsMu.Lock()
 	flowMemoAllCounts = append(flowMemoAllCounts, s.counts)
 	flowMemoStatsMu.Unlock()
@@ -106,7 +118,7 @@ func WriteFlowMemoCensus(w io.Writer) {
 	var total flowMemoCounts
 	for _, counts := range flowMemoAllCounts {
 		for i, n := range counts {
-			if flowMemoCount(i) == flowMemoMaxDepth {
+			if flowMemoCount(i) == flowMemoMaxDepth || flowMemoCount(i) == flowMemoMaxBound {
 				total[i] = max(total[i], n)
 			} else {
 				total[i] += n
@@ -172,6 +184,19 @@ func isFlowMemoStableType(t *Type, typeCount uint32) bool {
 	return true
 }
 
+// computeTypeAtFlowJunctionBounded computes the junction and returns the deepest additional
+// recursion it needed.
+func (c *Checker) computeTypeAtFlowJunctionBounded(f *FlowState, flow *ast.FlowNode, antecedents *ast.FlowList) (FlowType, int32) {
+	outerMax := f.maxDepth
+	f.maxDepth = f.depth
+	result := c.computeTypeAtFlowJunction(f, flow, antecedents)
+	bound := int32(f.maxDepth - f.depth)
+	if outerMax > f.maxDepth {
+		f.maxDepth = outerMax
+	}
+	return result, bound
+}
+
 func (c *Checker) computeTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antecedents *ast.FlowList) FlowType {
 	switch {
 	case flow.Flags&ast.FlowFlagsCondition != 0:
@@ -215,14 +240,18 @@ func (c *Checker) getTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antece
 		return c.computeTypeAtFlowJunction(f, flow, antecedents)
 	}
 	key := FlowLoopKey{flowNode: flow, refKey: f.refKey}
-	cached, hit := s.memo[key]
+	entry, hit := s.memo[key]
 	if hit {
 		s.counts[flowMemoHits]++
-		if f.incompleteShared != 0 {
+		switch {
+		case f.incompleteShared != 0:
 			// A recomputation could reach an incomplete shared flow type of this invocation.
 			s.counts[flowMemoHitsWithIncompleteShared]++
-		} else if flowMemoMode == "on" {
-			return FlowType{t: cached}
+		case f.depth+int(entry.depthBound) >= flowDepthLimit:
+			// Taking the entry here would skip recursion that reaches the depth limit.
+			s.counts[flowMemoDepthRefusedHits]++
+		case flowMemoMode == "on":
+			return FlowType{t: entry.t}
 		}
 		outermost := s.shadowDepth == 0
 		visitsBefore := s.counts[flowMemoVisits]
@@ -231,7 +260,7 @@ func (c *Checker) getTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antece
 			start = time.Now()
 		}
 		s.shadowDepth++
-		result := c.computeTypeAtFlowJunction(f, flow, antecedents)
+		result, _ := c.computeTypeAtFlowJunctionBounded(f, flow, antecedents)
 		s.shadowDepth--
 		if outermost {
 			s.counts[flowMemoOutermostHits]++
@@ -240,19 +269,22 @@ func (c *Checker) getTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antece
 				s.counts[flowMemoSavedNanos] += int64(time.Since(start))
 			}
 		}
-		if result.t != cached {
+		if result.t != entry.t {
 			s.counts[flowMemoMismatchType]++
-			c.reportFlowMemoMismatch(f, flow, cached, result)
+			c.reportFlowMemoMismatch(f, flow, entry.t, result)
 		} else if result.incomplete {
 			s.counts[flowMemoMismatchIncomplete]++
-			c.reportFlowMemoMismatch(f, flow, cached, result)
+			c.reportFlowMemoMismatch(f, flow, entry.t, result)
 		}
 		return result
 	}
 	referenceDependent := f.referenceDependent
 	cycles := s.cycles
 	diagnostics := s.diagnostics
-	result := c.computeTypeAtFlowJunction(f, flow, antecedents)
+	result, bound := c.computeTypeAtFlowJunctionBounded(f, flow, antecedents)
+	if int64(bound) > s.counts[flowMemoMaxBound] {
+		s.counts[flowMemoMaxBound] = int64(bound)
+	}
 	switch {
 	case result.incomplete:
 		s.counts[flowMemoBlockedIncomplete]++
@@ -267,7 +299,7 @@ func (c *Checker) getTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antece
 	case !isFlowMemoStableType(result.t, f.typeCount):
 		s.counts[flowMemoBlockedFresh]++
 	default:
-		s.memo[key] = result.t
+		s.memo[key] = flowMemoEntry{t: result.t, depthBound: bound}
 		s.counts[flowMemoStores]++
 	}
 	return result
