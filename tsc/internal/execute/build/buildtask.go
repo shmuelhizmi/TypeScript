@@ -157,10 +157,13 @@ func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path, s
 		t.barrier = newOutputBarrier(orchestrator.outputOwners, orchestrator.host.FS(), t, suspend, orchestrator.opts.Sys.Now)
 	} else {
 		// Wait on upstream tasks to complete
+		orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "wait-upstream", "")
 		t.waitOnUpstream()
+		orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "upstream-done", "")
 	}
 	if t.pending.Load() {
 		t.status = t.getUpToDateStatus(orchestrator, path)
+		orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "status", strconv.Itoa(int(t.status.kind)))
 		t.reportUpToDateStatus(orchestrator)
 		if !t.handleStatusThatDoesntRequireBuild(orchestrator) {
 			t.compileAndEmit(orchestrator, path)
@@ -194,6 +197,7 @@ func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path, s
 		// Downstream projects rely on every referenced project having finished when this one has.
 		t.barrier.waitForUpstream()
 	}
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "finished", "")
 	t.unblockDownstream()
 }
 
@@ -280,6 +284,7 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 		},
 	})
 	compileTimes.ParseTime = orchestrator.opts.Sys.Now().Sub(parseStart)
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "parsed", strconv.Itoa(len(program.SourceFiles())))
 	if t.barrier != nil {
 		// Time spent waiting for the outputs of other projects is not parse time.
 		compileTimes.ParseTime -= t.barrier.waitedTime()
@@ -300,6 +305,7 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 			return t.writeFile(orchestrator, fileName, text, data)
 		},
 		BeforeEmit: func() {
+			orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "checked", "")
 			if t.barrier != nil {
 				// Outputs are written after those of every referenced project, as when waiting upfront.
 				t.barrier.waitForUpstream()
@@ -309,6 +315,7 @@ func (t *BuildTask) compileAndEmit(orchestrator *Orchestrator, path tspath.Path)
 		Testing:            orchestrator.opts.Testing,
 		TestingMTimesCache: orchestrator.host.mTimes,
 	})
+	orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "emitted", "")
 	t.result.exitStatus = result.Status
 	t.result.statistics = statistics
 	t.packageJsons = t.result.program.PackageJsonLookupPaths()

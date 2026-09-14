@@ -85,6 +85,8 @@ type Orchestrator struct {
 
 	// fswatch event-based watching
 	wm *watchmanager.WatchManager
+
+	timeline *buildTimeline
 }
 
 var _ tsc.Watcher = (*Orchestrator)(nil)
@@ -776,6 +778,7 @@ func (o *Orchestrator) buildOrCleanProject(task *BuildTask, path tspath.Path, su
 	task.result = &taskResult{}
 	task.result.reportStatus = o.createBuilderStatusReporter(task)
 	task.result.diagnosticReporter = o.createDiagnosticReporter(task)
+	o.timeline.event(o.relativeFileName(task.config), "granted", "")
 	if !o.opts.Command.BuildOptions.Clean.IsTrue() {
 		task.buildProject(o, path, suspend)
 	} else {
@@ -806,8 +809,9 @@ func NewOrchestrator(opts Options) *Orchestrator {
 			CurrentDirectory:          opts.Sys.GetCurrentDirectory(),
 			UseCaseSensitiveFileNames: opts.Sys.FS().UseCaseSensitiveFileNames(),
 		},
-		tasks: &collections.SyncMap[tspath.Path, *BuildTask]{},
-		wm:    wm,
+		tasks:    &collections.SyncMap[tspath.Path, *BuildTask]{},
+		wm:       wm,
+		timeline: newBuildTimeline(),
 	}
 	orchestrator.host = &host{
 		orchestrator: orchestrator,
