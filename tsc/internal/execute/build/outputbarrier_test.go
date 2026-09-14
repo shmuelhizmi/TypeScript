@@ -63,16 +63,12 @@ func expectWaits(t *testing.T, observe func(), tasks ...*BuildTask) {
 		close(returned)
 	}()
 	for _, task := range tasks {
-		select {
-		case <-returned:
+		if closedWithin(returned, 50*time.Millisecond) {
 			t.Fatal("observation did not wait for an unfinished earlier project")
-		case <-time.After(50 * time.Millisecond):
 		}
 		close(task.done)
 	}
-	select {
-	case <-returned:
-	case <-time.After(30 * time.Second):
+	if !closedWithin(returned, 30*time.Second) {
 		t.Fatal("observation did not return")
 	}
 }
