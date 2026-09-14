@@ -51,9 +51,11 @@ type FlowState struct {
 	reduceLabels      []*ast.FlowReduceLabelData
 	next              *FlowState
 	// Lab flow-memo instrument: decisions that depended on the reference node itself,
-	// and incomplete shared flow types recorded in this invocation.
+	// incomplete shared flow types recorded in this invocation, and the checker's type
+	// count when the invocation began.
 	referenceDependent int
 	incompleteShared   int
+	typeCount          uint32
 }
 
 func (c *Checker) getFlowState() *FlowState {
@@ -105,6 +107,7 @@ func (c *Checker) getFlowTypeOfReferenceEx(reference *ast.Node, declaredType *Ty
 	c.flowInvocationCount++
 	var evolvedType *Type
 	if s := c.flowMemoStats; s != nil {
+		f.typeCount = c.TypeCount
 		s.counts[flowMemoInvocations]++
 		s.invocationDepth++
 		if s.invocationDepth == 1 && flowMemoTiming {

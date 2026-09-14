@@ -19,7 +19,8 @@ import (
 // returned. A result is stored only when its computation was complete, ran outside loop
 // analysis, reduce labels and aliased-condition inlining, did not trip the depth limit,
 // took no decision that depends on the reference node itself, hit no type resolution
-// cycle and reported no diagnostic.
+// cycle and reported no diagnostic, and only when its type would be the same object if
+// recomputed (see isFlowMemoStableType).
 var flowMemoMode = os.Getenv("TSGO_FLOW_MEMO")
 
 // flowMemoTiming times flow analysis and recomputed hits; only shadow mode pays for it.
@@ -53,6 +54,7 @@ const (
 	flowMemoBlockedReference
 	flowMemoBlockedCycle
 	flowMemoBlockedDiagnostic
+	flowMemoBlockedFresh
 	flowMemoCountLen
 )
 
@@ -61,7 +63,7 @@ var flowMemoCountNames = [flowMemoCountLen]string{
 	"ineligible_reference", "ineligible_loop", "ineligible_reduce", "ineligible_inline", "ineligible_disabled", "ineligible_key",
 	"hits", "hits_with_incomplete_shared", "outermost_hits", "saved_visits", "saved_ns",
 	"mismatch_type", "mismatch_incomplete", "stores",
-	"blocked_incomplete", "blocked_disabled", "blocked_reference", "blocked_cycle", "blocked_diagnostic",
+	"blocked_incomplete", "blocked_disabled", "blocked_reference", "blocked_cycle", "blocked_diagnostic", "blocked_fresh",
 }
 
 // flowMemoStats is the per-checker state of the instrument; it is nil when the instrument is off.
@@ -71,12 +73,14 @@ type flowMemoStats struct {
 	invocationDepth int // nesting of getFlowTypeOfReferenceEx
 	cycles          int // type resolution cycles found
 	diagnostics     int // diagnostics and suggestions reported
-	counts          [flowMemoCountLen]int64
+	counts          *flowMemoCounts
 }
+
+type flowMemoCounts [flowMemoCountLen]int64
 
 var (
 	flowMemoStatsMu   sync.Mutex
-	flowMemoAllStats  []*flowMemoStats
+	flowMemoAllCounts []*flowMemoCounts // only the counters: the memo dies with its checker
 	flowMemoReported  atomic.Int32
 	flowMemoReportMax = int32(20)
 )
@@ -85,9 +89,9 @@ func newFlowMemoStats() *flowMemoStats {
 	if flowMemoMode == "" {
 		return nil
 	}
-	s := &flowMemoStats{memo: make(map[FlowLoopKey]*Type)}
+	s := &flowMemoStats{memo: make(map[FlowLoopKey]*Type), counts: new(flowMemoCounts)}
 	flowMemoStatsMu.Lock()
-	flowMemoAllStats = append(flowMemoAllStats, s)
+	flowMemoAllCounts = append(flowMemoAllCounts, s.counts)
 	flowMemoStatsMu.Unlock()
 	return s
 }
@@ -99,9 +103,9 @@ func WriteFlowMemoCensus(w io.Writer) {
 	}
 	flowMemoStatsMu.Lock()
 	defer flowMemoStatsMu.Unlock()
-	var total [flowMemoCountLen]int64
-	for _, s := range flowMemoAllStats {
-		for i, n := range s.counts {
+	var total flowMemoCounts
+	for _, counts := range flowMemoAllCounts {
+		for i, n := range counts {
 			if flowMemoCount(i) == flowMemoMaxDepth {
 				total[i] = max(total[i], n)
 			} else {
@@ -110,7 +114,7 @@ func WriteFlowMemoCensus(w io.Writer) {
 		}
 	}
 	fmt.Fprintf(w, "flow-memo\tmode\t%s\n", flowMemoMode)
-	fmt.Fprintf(w, "flow-memo\tcheckers\t%d\n", len(flowMemoAllStats))
+	fmt.Fprintf(w, "flow-memo\tcheckers\t%d\n", len(flowMemoAllCounts))
 	for i, n := range total {
 		fmt.Fprintf(w, "flow-memo\t%s\t%d\n", flowMemoCountNames[i], n)
 	}
@@ -127,6 +131,38 @@ func (c *Checker) isReferenceDependentNarrowableType(t *Type) bool {
 		t = t.AsSubstitutionType().baseType
 	}
 	return someType(t, c.isGenericTypeWithUnionConstraint)
+}
+
+// isFlowMemoStableType reports whether recomputing a flow type would yield t itself rather
+// than a structurally equal copy: t existed before the flow analysis invocation began (its
+// id is at most typeCount; later types can reach the result through the invocation's shared
+// flow cache), or it is a literal, or a union or intersection of stable types, all of which
+// are interned. An object literal type, for one, is created afresh by every evaluation.
+func isFlowMemoStableType(t *Type, typeCount uint32) bool {
+	if uint32(t.id) <= typeCount || t.flags&TypeFlagsLiteral != 0 {
+		return true
+	}
+	if t.flags&TypeFlagsUnionOrIntersection == 0 {
+		return false
+	}
+	for _, constituent := range t.Types() {
+		if !isFlowMemoStableType(constituent, typeCount) {
+			return false
+		}
+	}
+	if t.flags&TypeFlagsUnion != 0 {
+		if origin := t.AsUnionType().origin; origin != nil && !isFlowMemoStableType(origin, typeCount) {
+			return false
+		}
+	}
+	if alias := t.alias; alias != nil {
+		for _, argument := range alias.typeArguments {
+			if !isFlowMemoStableType(argument, typeCount) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (c *Checker) computeTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antecedents *ast.FlowList) FlowType {
@@ -221,6 +257,8 @@ func (c *Checker) getTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antece
 		s.counts[flowMemoBlockedCycle]++
 	case s.diagnostics != diagnostics:
 		s.counts[flowMemoBlockedDiagnostic]++
+	case !isFlowMemoStableType(result.t, f.typeCount):
+		s.counts[flowMemoBlockedFresh]++
 	default:
 		s.memo[key] = result.t
 		s.counts[flowMemoStores]++
