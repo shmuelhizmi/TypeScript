@@ -12,7 +12,9 @@ const barrierRoot = "/home/src/workspaces/solution"
 
 // barrierFixture is the view of an app project that references client, which references core.
 // The build order is core, client, other, app, later: other and later are not referenced. Every
-// project writes below its dist directory, and node_modules links to the core and other packages.
+// project writes its outputs and build info below its dist directory, core and other also write
+// into the shared dist directory of the solution, and node_modules links to the core and other
+// packages.
 type barrierFixture struct {
 	barrier                    *outputBarrier
 	core, client, other, later *BuildTask
@@ -34,10 +36,12 @@ func newBarrierFixture() *barrierFixture {
 		for _, upstream := range upstream {
 			task.upStream = append(task.upStream, &upstreamTask{task: upstream})
 		}
-		owners.add(task, projectOutputs{
-			directories: []string{barrierRoot + "/packages/" + name + "/dist"},
-			files:       []string{barrierRoot + "/packages/" + name + "/dist/tsconfig.tsbuildinfo"},
-		})
+		dist := barrierRoot + "/packages/" + name + "/dist/"
+		files := []string{dist + "index.js", dist + "index.d.ts", dist + "tsconfig.tsbuildinfo"}
+		if name == "core" || name == "other" {
+			files = append(files, barrierRoot+"/dist/"+name+".js")
+		}
+		owners.add(task, files)
 		return task
 	}
 	f := &barrierFixture{}
@@ -115,6 +119,16 @@ func TestOutputBarrierWaitsForEarlierOutputs(t *testing.T) {
 		f := newBarrierFixture()
 		expectWaits(t, func() { f.barrier.GetAccessibleEntries(barrierRoot + "/packages") }, f.core, f.client, f.other)
 	})
+	t.Run("file in a shared output directory", func(t *testing.T) {
+		t.Parallel()
+		f := newBarrierFixture()
+		expectWaits(t, func() { f.barrier.FileExists(barrierRoot + "/dist/other.js") }, f.other)
+	})
+	t.Run("shared output directory that does not exist yet", func(t *testing.T) {
+		t.Parallel()
+		f := newBarrierFixture()
+		expectWaits(t, func() { f.barrier.DirectoryExists(barrierRoot + "/dist") }, f.core, f.other)
+	})
 	t.Run("every referenced project before emit", func(t *testing.T) {
 		t.Parallel()
 		f := newBarrierFixture()
@@ -144,6 +158,17 @@ func TestOutputBarrierDoesNotWaitForOtherObservations(t *testing.T) {
 		f := newBarrierFixture()
 		close(f.core.done)
 		expectWaits(t, func() { f.barrier.FileExists(barrierRoot + "/packages/core/dist/index.d.ts") })
+	})
+	t.Run("file no project writes in an output directory", func(t *testing.T) {
+		t.Parallel()
+		f := newBarrierFixture()
+		expectWaits(t, func() { f.barrier.FileExists(barrierRoot + "/packages/core/dist/missing.d.ts") })
+	})
+	t.Run("file of a later project in a shared output directory", func(t *testing.T) {
+		t.Parallel()
+		f := newBarrierFixture()
+		expectWaits(t, func() { f.barrier.ReadFile(barrierRoot + "/dist/core.js") }, f.core)
+		expectWaits(t, func() { f.barrier.ReadFile(barrierRoot + "/dist/other.js") }, f.other)
 	})
 }
 

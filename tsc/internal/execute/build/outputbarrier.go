@@ -7,44 +7,38 @@ import (
 	"time"
 
 	"github.com/microsoft/TypeScript/tsc/internal/collections"
+	"github.com/microsoft/TypeScript/tsc/internal/core"
+	"github.com/microsoft/TypeScript/tsc/internal/outputpaths"
+	"github.com/microsoft/TypeScript/tsc/internal/tsoptions"
 	"github.com/microsoft/TypeScript/tsc/internal/tspath"
 	"github.com/microsoft/TypeScript/tsc/internal/vfs"
 )
 
-// projectOutputs is where a project writes: the directories it owns as a whole and the files it
-// writes elsewhere.
-type projectOutputs struct {
-	directories []string
-	files       []string
-}
-
-// outputOwners indexes the outputs of the projects of a build by the canonical form of their paths
-// (see canonicalPaths), so that a path reaching an output through a linked package directory in
-// node_modules names the same owner as the output itself.
+// outputOwners indexes the files the projects of a build write by the canonical form of their
+// paths (see canonicalPaths), so that a path reaching an output through a linked package directory
+// in node_modules names the same owner as the output itself. Projects that share an output
+// directory own only their own files in it.
 type outputOwners struct {
-	canonical   *canonicalPaths
-	options     tspath.ComparePathsOptions
-	tasks       []*BuildTask                 // in build order
-	index       map[*BuildTask]int           // position in tasks
-	directories map[tspath.Path][]*BuildTask // a project writes anywhere below these
-	files       map[tspath.Path][]*BuildTask // a project writes these outside the directories it owns
-	enclosing   map[tspath.Path][]*BuildTask // proper ancestors of owned paths: a project may create entries there
+	canonical *canonicalPaths
+	options   tspath.ComparePathsOptions
+	tasks     []*BuildTask                 // in build order
+	index     map[*BuildTask]int           // position in tasks
+	files     map[tspath.Path][]*BuildTask // the projects that write the file
+	enclosing map[tspath.Path][]*BuildTask // proper ancestors of written files: a project may create entries there
 }
 
 func newOutputOwners(fs vfs.FS, options tspath.ComparePathsOptions) *outputOwners {
 	return &outputOwners{
-		canonical:   &canonicalPaths{fs: fs},
-		options:     options,
-		index:       map[*BuildTask]int{},
-		directories: map[tspath.Path][]*BuildTask{},
-		files:       map[tspath.Path][]*BuildTask{},
-		enclosing:   map[tspath.Path][]*BuildTask{},
+		canonical: &canonicalPaths{fs: fs},
+		options:   options,
+		index:     map[*BuildTask]int{},
+		files:     map[tspath.Path][]*BuildTask{},
+		enclosing: map[tspath.Path][]*BuildTask{},
 	}
 }
 
-// collectOutputOwners indexes what every project of the build order writes: its outDir and
-// declarationDir as a whole, its build info, and, when it has no outDir, its outputs next to the
-// sources.
+// collectOutputOwners indexes the files every project of the build order writes: the outputs its
+// up-to-date status is checked against and its build info.
 func (o *Orchestrator) collectOutputOwners() *outputOwners {
 	owners := newOutputOwners(o.opts.Sys.FS(), o.comparePathsOptions)
 	for _, config := range o.order {
@@ -52,35 +46,45 @@ func (o *Orchestrator) collectOutputOwners() *outputOwners {
 		if task.resolved == nil {
 			continue
 		}
-		options := task.resolved.CompilerOptions()
-		var outputs projectOutputs
-		if options.OutDir != "" {
-			outputs.directories = append(outputs.directories, options.OutDir)
-		}
-		if options.DeclarationDir != "" {
-			outputs.directories = append(outputs.directories, options.DeclarationDir)
-		}
+		files := slices.Collect(task.resolved.GetOutputFileNamesUsing(newOutputPathsHost(task.resolved)))
 		if buildInfo := task.resolved.GetBuildInfoFileName(); buildInfo != "" {
-			outputs.files = append(outputs.files, buildInfo)
+			files = append(files, buildInfo)
 		}
-		if options.OutDir == "" {
-			outputs.files = slices.AppendSeq(outputs.files, task.resolved.GetOutputFileNames())
-		}
-		owners.add(task, outputs)
+		owners.add(task, files)
 	}
 	return owners
 }
 
-// add records the outputs of the next task in build order.
-func (owners *outputOwners) add(task *BuildTask, outputs projectOutputs) {
+// outputPathsHost computes the output paths of a project before it is compiled. The parsed command
+// line reports the source files outside rootDir when it computes its common source directory; that
+// report belongs to the compilation of the project, so this host computes the directory without it.
+type outputPathsHost struct {
+	*tsoptions.ParsedCommandLine
+	commonSourceDirectory string
+}
+
+func newOutputPathsHost(config *tsoptions.ParsedCommandLine) *outputPathsHost {
+	options := config.CompilerOptions()
+	files := func() []string {
+		return core.Filter(config.FileNames(), func(file string) bool {
+			return !(options.NoEmitForJsFiles.IsTrue() && tspath.HasJSFileExtension(file)) && !tspath.IsDeclarationFileName(file)
+		})
+	}
+	return &outputPathsHost{
+		ParsedCommandLine:     config,
+		commonSourceDirectory: outputpaths.GetCommonSourceDirectory(options, files, config.GetCurrentDirectory(), config.UseCaseSensitiveFileNames(), nil),
+	}
+}
+
+func (h *outputPathsHost) CommonSourceDirectory() string {
+	return h.commonSourceDirectory
+}
+
+// add records the files the next task in build order writes.
+func (owners *outputOwners) add(task *BuildTask, files []string) {
 	owners.index[task] = len(owners.tasks)
 	owners.tasks = append(owners.tasks, task)
-	for _, directory := range outputs.directories {
-		path, _ := owners.directoryPath(directory)
-		owners.directories[path] = appendOwner(owners.directories[path], task)
-		owners.addEnclosing(path, task)
-	}
-	for _, file := range outputs.files {
+	for _, file := range files {
 		path := owners.filePath(file)
 		owners.files[path] = appendOwner(owners.files[path], task)
 		owners.addEnclosing(path, task)
@@ -98,7 +102,7 @@ func (owners *outputOwners) addEnclosing(path tspath.Path, task *BuildTask) {
 	}
 }
 
-// appendOwner adds task to owners unless it is the last one already: the outputs of a project are
+// appendOwner adds task to owners unless it is the last one already: the files of a project are
 // added together.
 func appendOwner(owners []*BuildTask, task *BuildTask) []*BuildTask {
 	if n := len(owners); n > 0 && owners[n-1] == task {
@@ -128,23 +132,15 @@ func (owners *outputOwners) toPath(path string) tspath.Path {
 	return tspath.ToPath(path, owners.options.CurrentDirectory, owners.options.UseCaseSensitiveFileNames)
 }
 
-// owning returns the projects whose outputs an observation of path can show: those owning path or
-// a directory above it and, for a listing, those that may create entries below it.
+// owning returns the projects whose outputs an observation of path can show: those writing path
+// and, for a listing, those that may create entries below it.
 func (owners *outputOwners) owning(path tspath.Path, listing bool) []*BuildTask {
+	if !listing {
+		return owners.files[path]
+	}
 	var result []*BuildTask
 	result = append(result, owners.files[path]...)
-	for directory := path; ; {
-		result = append(result, owners.directories[directory]...)
-		parent := directory.GetDirectoryPath()
-		if parent == directory {
-			break
-		}
-		directory = parent
-	}
-	if listing {
-		result = append(result, owners.enclosing[path]...)
-	}
-	return result
+	return append(result, owners.enclosing[path]...)
 }
 
 // writtenByEarlierProject reports whether a project before task in build order writes file.
@@ -279,7 +275,7 @@ func (b *outputBarrier) observeFile(path string) {
 }
 
 // observeDirectory waits like observeFile for the directory at path, following a link at path
-// itself, and also for the projects that may create the directory when it does not exist yet.
+// itself, and for the projects that may create the directory when it does not exist yet.
 func (b *outputBarrier) observeDirectory(path string) {
 	if b.settled.Load() {
 		return
