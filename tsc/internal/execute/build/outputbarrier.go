@@ -246,9 +246,10 @@ type outputBarrier struct {
 	referenced []*BuildTask // the projects the project references, directly or through other references
 	suspend    func(wait func())
 	now        func() time.Time
-	waiting    sync.Mutex    // one wait at a time: the task's worker is released once
-	waited     time.Duration // time spent waiting so far, updated under waiting
-	settled    atomic.Bool   // every earlier project has finished; nothing is left to wait for
+	trace      func(event string, tasks []*BuildTask) // lab instrument; nil when off
+	waiting    sync.Mutex                             // one wait at a time: the task's worker is released once
+	waited     time.Duration                          // time spent waiting so far, updated under waiting
+	settled    atomic.Bool                            // every earlier project has finished; nothing is left to wait for
 }
 
 var _ vfs.FS = (*outputBarrier)(nil)
@@ -316,11 +317,20 @@ func (b *outputBarrier) wait(owners []*BuildTask) {
 		defer b.waiting.Unlock()
 		if pending = b.unfinished(pending); len(pending) != 0 {
 			start := b.now()
+			if b.trace != nil {
+				b.trace("barrier-wait", pending)
+			}
 			b.suspend(func() {
 				for _, task := range pending {
 					<-task.done
 				}
+				if b.trace != nil {
+					b.trace("barrier-done", pending)
+				}
 			})
+			if b.trace != nil {
+				b.trace("resumed", nil)
+			}
 			b.waited += b.now().Sub(start)
 		}
 	}

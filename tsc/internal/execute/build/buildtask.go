@@ -155,6 +155,15 @@ func (t *BuildTask) buildProject(orchestrator *Orchestrator, path tspath.Path, s
 	t.barrier = nil
 	if t.overlapsUpstream {
 		t.barrier = newOutputBarrier(orchestrator.outputOwners, orchestrator.host.FS(), t, suspend, orchestrator.opts.Sys.Now)
+		if orchestrator.timeline != nil {
+			t.barrier.trace = func(event string, tasks []*BuildTask) {
+				names := make([]string, len(tasks))
+				for i, task := range tasks {
+					names[i] = orchestrator.relativeFileName(task.config)
+				}
+				orchestrator.timeline.event(orchestrator.relativeFileName(t.config), event, strings.Join(names, ","))
+			}
+		}
 	} else {
 		// Wait on upstream tasks to complete
 		orchestrator.timeline.event(orchestrator.relativeFileName(t.config), "wait-upstream", "")
