@@ -756,7 +756,10 @@ func (o *Orchestrator) buildReadyProjects(buildResult *orchestratorResult) {
 				panic("upstream project is not in the build order")
 			}
 			if task.overlapsUpstream {
+				// The project can do nothing beyond parsing its own sources until one of the projects it
+				// references has finished; parsing that early only competes with them for the processors.
 				dependencies[i].started = append(dependencies[i].started, index)
+				dependencies[i].oneFinished = append(dependencies[i].oneFinished, index)
 			} else {
 				dependencies[i].finished = append(dependencies[i].finished, index)
 			}

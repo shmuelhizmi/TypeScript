@@ -102,6 +102,47 @@ func TestReadyBuildTasksStartAfterDependencyStarted(t *testing.T) {
 	}
 }
 
+func TestReadyBuildTasksStartAfterOneDependencyFinished(t *testing.T) {
+	t.Parallel()
+	// Task 2 may start once tasks 0 and 1 have started and one of them has finished.
+	dependencies := []taskDependencies{{}, {}, {started: []int{0, 1}, oneFinished: []int{0, 1}}}
+	releaseFirst := make(chan struct{})
+	thirdStarted := make(chan struct{})
+	returned := make(chan struct{})
+	var secondFinished atomic.Bool
+	var reports []int
+	go func() {
+		executeReadyBuildTasks(dependencies, 3, func(i int, _ func(func())) {
+			switch i {
+			case 0:
+				<-releaseFirst
+			case 1:
+				secondFinished.Store(true)
+			case 2:
+				if !secondFinished.Load() {
+					t.Error("task 2 ran before task 1 finished")
+				}
+				close(thirdStarted)
+			}
+		}, func(i int) {
+			reports = append(reports, i)
+		})
+		close(returned)
+	}()
+	select {
+	case <-thirdStarted:
+	case <-time.After(30 * time.Second):
+		close(releaseFirst)
+		<-returned
+		t.Fatal("task 2 did not start while task 0 was running")
+	}
+	close(releaseFirst)
+	<-returned
+	if !slices.Equal(reports, []int{0, 1, 2}) {
+		t.Fatalf("report order = %v", reports)
+	}
+}
+
 func TestReadyBuildTasksSuspendReleasesWorker(t *testing.T) {
 	t.Parallel()
 	// Tasks 0 and 1 hold both workers until task 2 has run, which it can only do
