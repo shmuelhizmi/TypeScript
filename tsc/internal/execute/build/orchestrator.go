@@ -75,8 +75,10 @@ type Orchestrator struct {
 	order  []string
 	errors []*ast.Diagnostic
 
-	// rootFileOwners is rebuilt before the projects of a build are compiled; see collectRootFileOwners.
+	// rootFileOwners and outputOwners are rebuilt before the projects of a build are compiled; see
+	// collectRootFileOwners and collectOutputOwners.
 	rootFileOwners rootFileOwners
+	outputOwners   *outputOwners
 
 	errorSummaryReporter tsc.DiagnosticsReporter
 	watchStatusReporter  tsc.DiagnosticReporter
@@ -674,7 +676,7 @@ func (o *Orchestrator) buildOrClean() tsc.CommandLineResult {
 		buildResult.statistics.Projects = len(o.Order())
 		if o.opts.Command.BuildOptions.Clean.IsTrue() {
 			o.rangeTask(func(path tspath.Path, task *BuildTask) {
-				o.buildOrCleanProject(task, path)
+				o.buildOrCleanProject(task, path, nil)
 				task.report(o, path, &buildResult)
 			})
 		} else {
@@ -744,29 +746,35 @@ func (o *Orchestrator) buildReadyProjects(buildResult *orchestratorResult) {
 		tasks[i] = o.getTask(paths[i])
 		indices[tasks[i]] = i
 	}
-	dependencies := make([][]int, len(tasks))
+	o.outputOwners = o.collectOutputOwners()
+	dependencies := make([]taskDependencies, len(tasks))
 	for i, task := range tasks {
+		task.overlapsUpstream = o.canOverlapUpstream(task)
 		for _, upstream := range task.upStream {
 			index, ok := indices[upstream.task]
 			if !ok {
 				panic("upstream project is not in the build order")
 			}
-			dependencies[i] = append(dependencies[i], index)
+			if task.overlapsUpstream {
+				dependencies[i].started = append(dependencies[i].started, index)
+			} else {
+				dependencies[i].finished = append(dependencies[i].finished, index)
+			}
 		}
 	}
-	executeReadyBuildTasks(dependencies, o.builderCount(), func(i int) {
-		o.buildOrCleanProject(tasks[i], paths[i])
+	executeReadyBuildTasks(dependencies, o.builderCount(), func(i int, suspend func(wait func())) {
+		o.buildOrCleanProject(tasks[i], paths[i], suspend)
 	}, func(i int) {
 		tasks[i].report(o, paths[i], buildResult)
 	})
 }
 
-func (o *Orchestrator) buildOrCleanProject(task *BuildTask, path tspath.Path) {
+func (o *Orchestrator) buildOrCleanProject(task *BuildTask, path tspath.Path, suspend func(wait func())) {
 	task.result = &taskResult{}
 	task.result.reportStatus = o.createBuilderStatusReporter(task)
 	task.result.diagnosticReporter = o.createDiagnosticReporter(task)
 	if !o.opts.Command.BuildOptions.Clean.IsTrue() {
-		task.buildProject(o, path)
+		task.buildProject(o, path, suspend)
 	} else {
 		task.cleanProject(o, path)
 	}

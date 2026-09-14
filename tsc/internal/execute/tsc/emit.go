@@ -37,6 +37,8 @@ type EmitInput struct {
 	ReportErrorSummary DiagnosticsReporter
 	Writer             io.Writer
 	WriteFile          compiler.WriteFile
+	// BeforeEmit, when set, runs once the diagnostics of the program are collected and before any output is written.
+	BeforeEmit         func()
 	CompileTimes       *CompileTimes
 	Testing            CommandLineTesting
 	TestingMTimesCache *collections.SyncMap[tspath.Path, time.Time]
@@ -114,6 +116,9 @@ func EmitFilesAndReportErrors(input EmitInput) (result CompileAndEmitResult) {
 
 	emitResult := &compiler.EmitResult{EmitSkipped: true, Diagnostics: []*ast.Diagnostic{}}
 	if !input.ProgramLike.Options().ListFilesOnly.IsTrue() {
+		if input.BeforeEmit != nil {
+			input.BeforeEmit()
+		}
 		emitStart := input.Sys.Now()
 		emitResult = input.ProgramLike.Emit(ctx, compiler.EmitOptions{
 			WriteFile: input.WriteFile,
