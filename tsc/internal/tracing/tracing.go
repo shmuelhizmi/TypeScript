@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -497,6 +498,10 @@ func (t *typeTracer) RecordType(typ TracedType) {
 }
 
 func (t *typeTracer) DumpTypes() error {
+	if os.Getenv("TSGO_TRACE_NO_TYPES") != "" {
+		// Lab instrument: keep trace.json only (a type dump of a large program runs to gigabytes).
+		return nil
+	}
 	// Copy the types slice under lock, then release so Display() calls during
 	// buildTypeDescriptor don't deadlock when they create new types
 	t.mu.Lock()
