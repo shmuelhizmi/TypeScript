@@ -13635,7 +13635,6 @@ func (c *Checker) getSpreadType(left *Type, right *Type, symbol *ast.Symbol, obj
 		}
 		return c.getIntersectionType([]*Type{left, right})
 	}
-	members := make(ast.SymbolTable)
 	var skippedPrivateMembers collections.Set[string]
 	var indexInfos []*IndexInfo
 	if left == c.emptyObjectType {
@@ -13643,7 +13642,9 @@ func (c *Checker) getSpreadType(left *Type, right *Type, symbol *ast.Symbol, obj
 	} else {
 		indexInfos = c.getUnionIndexInfos([]*Type{left, right})
 	}
-	for _, rightProp := range c.getPropertiesOfType(right) {
+	rightProps := c.getPropertiesOfType(right)
+	members := make(ast.SymbolTable, len(rightProps))
+	for _, rightProp := range rightProps {
 		if getDeclarationModifierFlagsFromSymbol(rightProp)&(ast.ModifierFlagsPrivate|ast.ModifierFlagsProtected) != 0 {
 			skippedPrivateMembers.Add(rightProp.Name)
 		} else if c.isSpreadableProperty(rightProp) {
@@ -19194,13 +19195,24 @@ func (c *Checker) getPropertiesOfObjectType(t *Type) []*ast.Symbol {
 func (c *Checker) getPropertiesOfUnionOrIntersectionType(t *Type) []*ast.Symbol {
 	d := t.AsUnionOrIntersectionType()
 	if d.resolvedProperties == nil {
-		var checked collections.Set[string]
-		props := []*ast.Symbol{}
-		for _, current := range d.types {
-			for _, prop := range c.getPropertiesOfType(current) {
+		skipObjectFunctionPropertyAugment := t.flags&TypeFlagsIntersection != 0
+		// Every property of the first constituent is looked up in the containing type, cached there and, unless
+		// it is partial, collected; the later constituents of an intersection add the names the first one lacks.
+		// Size the visited names, the result and the property cache for the first constituent's properties so
+		// that none of them grows entry by entry.
+		firstProps := c.getPropertiesOfType(d.types[0])
+		checked := collections.NewSetWithSizeHint[string](len(firstProps))
+		props := make([]*ast.Symbol, 0, len(firstProps))
+		d.reservePropertyCache(skipObjectFunctionPropertyAugment, len(firstProps))
+		for i, current := range d.types {
+			currentProps := firstProps
+			if i > 0 {
+				currentProps = c.getPropertiesOfType(current)
+			}
+			for _, prop := range currentProps {
 				if !checked.Has(prop.Name) {
 					checked.Add(prop.Name)
-					combinedProp := c.getPropertyOfUnionOrIntersectionType(t, prop.Name, t.flags&TypeFlagsIntersection != 0 /*skipObjectFunctionPropertyAugment*/)
+					combinedProp := c.getPropertyOfUnionOrIntersectionType(t, prop.Name, skipObjectFunctionPropertyAugment)
 					if combinedProp != nil {
 						props = append(props, combinedProp)
 					}

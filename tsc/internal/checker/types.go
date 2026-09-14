@@ -1162,6 +1162,18 @@ func (t *UnionOrIntersectionType) Types() []*Type {
 	return t.types
 }
 
+// reservePropertyCache creates the property cache that lookups with the given augmentation setting fill, with room
+// for n properties, unless it exists already. The lookups of an intersection also copy their results into the
+// augmented cache, so both caches are created for it.
+func (t *UnionOrIntersectionType) reservePropertyCache(skipObjectFunctionPropertyAugment bool, n int) {
+	if skipObjectFunctionPropertyAugment && t.propertyCacheWithoutFunctionPropertyAugment == nil {
+		t.propertyCacheWithoutFunctionPropertyAugment = make(ast.SymbolTable, n)
+	}
+	if t.propertyCache == nil {
+		t.propertyCache = make(ast.SymbolTable, n)
+	}
+}
+
 // UnionType
 
 type UnionType struct {
