@@ -3,6 +3,7 @@ package execute
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strings"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
@@ -307,10 +308,14 @@ func performIncrementalCompilation(
 	tr := startTracingIfNeeded(sys, config, testing)
 
 	parseStart := sys.Now()
-	program := compiler.NewProgram(compiler.ProgramOptions{
-		Config:  config,
-		Host:    host,
-		Tracing: tr,
+	var program *compiler.Program
+	withRetainedAllocations(func() {
+		program = compiler.NewProgram(compiler.ProgramOptions{
+			Config:  config,
+			Host:    host,
+			Tracing: tr,
+		})
+		program.BindSourceFiles()
 	})
 	compileTimes.ParseTime = sys.Now().Sub(parseStart)
 	changesComputeStart := sys.Now()
@@ -362,10 +367,14 @@ func performCompilation(
 	tr := startTracingIfNeeded(sys, config, testing)
 
 	parseStart := sys.Now()
-	program := compiler.NewProgram(compiler.ProgramOptions{
-		Config:  config,
-		Host:    host,
-		Tracing: tr,
+	var program *compiler.Program
+	withRetainedAllocations(func() {
+		program = compiler.NewProgram(compiler.ProgramOptions{
+			Config:  config,
+			Host:    host,
+			Tracing: tr,
+		})
+		program.BindSourceFiles()
 	})
 	compileTimes.ParseTime = sys.Now().Sub(parseStart)
 	if contentMapperHost != nil {
@@ -405,4 +414,14 @@ func getContentMapperProject(host contentmapper.Host, config *tsoptions.ParsedCo
 func showConfig(sys tsc.System, config *tsoptions.ParsedCommandLine, configFileName string) {
 	tsConfig := tsoptions.ConvertToTSConfig(config, configFileName)
 	_ = json.MarshalIndentWrite(sys.Writer(), tsConfig, "", "    ")
+}
+
+// withRetainedAllocations runs construct with the garbage collector paused. Nearly everything program construction
+// and binding allocate is still live when they finish, so a collection during them only marks a growing heap again
+// and taxes every pointer store of the parser and binder with a write barrier. The collector resumes at its
+// previous setting when construct returns.
+func withRetainedAllocations(construct func()) {
+	previous := debug.SetGCPercent(-1)
+	defer debug.SetGCPercent(previous)
+	construct()
 }
