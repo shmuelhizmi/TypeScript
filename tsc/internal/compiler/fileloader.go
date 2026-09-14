@@ -179,9 +179,15 @@ func processAllProgramFiles(
 	if opts.Tracing != nil {
 		defer opts.Tracing.Push(tracing.PhaseProgram, "processRootFiles", map[string]any{"count": len(rootFiles)}, false)()
 	}
+	// Resolving a root file looks it up on disk; the roots are resolved concurrently and keep their order.
+	loader.rootTasks = loader.rootTasks[:len(rootFiles)]
+	rootFileTasks := core.NewWorkGroup(singleThreaded)
 	for index, rootFile := range rootFiles {
-		loader.addRootFileTask(rootFile, nil, &FileIncludeReason{kind: fileIncludeKindRootFile, data: index})
+		rootFileTasks.Queue(func() {
+			loader.rootTasks[index] = loader.rootFileTask(rootFile, &FileIncludeReason{kind: fileIncludeKindRootFile, data: index})
+		})
 	}
+	rootFileTasks.RunAndWait()
 	if len(rootFiles) > 0 && compilerOptions.NoLib.IsFalseOrUnknown() {
 		if compilerOptions.Lib == nil {
 			name := tsoptions.GetDefaultLibFileName(compilerOptions)
@@ -227,7 +233,7 @@ func (p *fileLoader) addRootTask(fileName string, libFile *LibFile, includeReaso
 	}
 }
 
-func (p *fileLoader) addRootFileTask(fileName string, libFile *LibFile, includeReason *FileIncludeReason) {
+func (p *fileLoader) rootFileTask(fileName string, includeReason *FileIncludeReason) *parseTask {
 	currDir := p.opts.Host.GetCurrentDirectory()
 	absPath := tspath.GetNormalizedAbsolutePath(fileName, currDir)
 	containingFile := currDir
@@ -237,7 +243,6 @@ func (p *fileLoader) addRootFileTask(fileName string, libFile *LibFile, includeR
 	resolvedFile, diagnostic := p.getSourceFileFromReference(absPath, fileName, containingFile, includeReason)
 	rootTask := &parseTask{
 		normalizedFilePath: resolvedFile,
-		libFile:            libFile,
 		includeReason:      includeReason,
 	}
 	if diagnostic != nil {
@@ -252,7 +257,7 @@ func (p *fileLoader) addRootFileTask(fileName string, libFile *LibFile, includeR
 			},
 		}}
 	}
-	p.rootTasks = append(p.rootTasks, rootTask)
+	return rootTask
 }
 
 func (p *fileLoader) addAutomaticTypeDirectiveTasks() {

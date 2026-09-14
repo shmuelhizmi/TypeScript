@@ -262,8 +262,40 @@ type parseTaskData struct {
 }
 
 func (w *filesParser) parse(loader *fileLoader, tasks []*parseTask) {
-	w.start(loader, tasks, 0)
+	// The lib files are the largest tasks; queued after every root file, they would be the last to start.
+	if libFiles, others := libFilesFirst(loader, tasks); libFiles != nil {
+		w.start(loader, libFiles, 0)
+		w.start(loader, others, 0)
+	} else {
+		w.start(loader, tasks, 0)
+	}
 	w.wg.RunAndWait()
+}
+
+// libFilesFirst splits the root tasks into the lib files and the others, or returns nil when there is no lib file or
+// when a lib file shares its path with another root task: the first task started for a path owns it, so starting
+// the lib files first would change which task that is.
+func libFilesFirst(loader *fileLoader, tasks []*parseTask) (libFiles []*parseTask, others []*parseTask) {
+	libPaths := make(map[tspath.Path]struct{})
+	for _, task := range tasks {
+		if task.libFile != nil {
+			libPaths[loader.toPath(task.normalizedFilePath)] = struct{}{}
+			libFiles = append(libFiles, task)
+		}
+	}
+	if len(libFiles) == 0 {
+		return nil, nil
+	}
+	others = make([]*parseTask, 0, len(tasks)-len(libFiles))
+	for _, task := range tasks {
+		if task.libFile == nil {
+			if _, shared := libPaths[loader.toPath(task.normalizedFilePath)]; shared {
+				return nil, nil
+			}
+			others = append(others, task)
+		}
+	}
+	return libFiles, others
 }
 
 func (w *filesParser) start(loader *fileLoader, tasks []*parseTask, depth int) {
