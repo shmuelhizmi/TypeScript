@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,19 @@ var flowMemoMode = os.Getenv("TSGO_FLOW_MEMO")
 
 // flowMemoTiming times flow analysis and recomputed hits; only shadow mode pays for it.
 var flowMemoTiming = flowMemoMode == "shadow"
+
+// flowMemoMinVisits (TSGO_FLOW_MEMO_MIN) is the number of flow node visits a junction must
+// cost before its result is worth an entry: on a large program most junctions are cheap and
+// the map traffic of memoizing them all costs more than the recomputation it saves.
+var flowMemoMinVisits = flowMemoEnvInt("TSGO_FLOW_MEMO_MIN")
+
+func flowMemoEnvInt(name string) int64 {
+	value, err := strconv.Atoi(os.Getenv(name))
+	if err != nil {
+		return 0
+	}
+	return int64(value)
+}
 
 type flowMemoCount int
 
@@ -57,6 +71,7 @@ const (
 	flowMemoBlockedFresh
 	flowMemoDepthRefusedHits
 	flowMemoMaxBound
+	flowMemoBlockedCheap
 	flowMemoCountLen
 )
 
@@ -66,7 +81,7 @@ var flowMemoCountNames = [flowMemoCountLen]string{
 	"hits", "hits_with_incomplete_shared", "outermost_hits", "saved_visits", "saved_ns",
 	"mismatch_type", "mismatch_incomplete", "stores",
 	"blocked_incomplete", "blocked_disabled", "blocked_reference", "blocked_cycle", "blocked_diagnostic", "blocked_fresh",
-	"depth_refused_hits", "max_bound",
+	"depth_refused_hits", "max_bound", "blocked_cheap",
 }
 
 // flowMemoStats is the per-checker state of the instrument; it is nil when the instrument is off.
@@ -281,11 +296,14 @@ func (c *Checker) getTypeAtFlowJunction(f *FlowState, flow *ast.FlowNode, antece
 	referenceDependent := f.referenceDependent
 	cycles := s.cycles
 	diagnostics := s.diagnostics
+	visitsBefore := s.counts[flowMemoVisits]
 	result, bound := c.computeTypeAtFlowJunctionBounded(f, flow, antecedents)
 	if int64(bound) > s.counts[flowMemoMaxBound] {
 		s.counts[flowMemoMaxBound] = int64(bound)
 	}
 	switch {
+	case s.counts[flowMemoVisits]-visitsBefore < flowMemoMinVisits:
+		s.counts[flowMemoBlockedCheap]++
 	case result.incomplete:
 		s.counts[flowMemoBlockedIncomplete]++
 	case c.flowAnalysisDisabled:
