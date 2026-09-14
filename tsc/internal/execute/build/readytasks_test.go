@@ -8,6 +8,16 @@ import (
 	"time"
 )
 
+// closedWithin reports whether ch is closed before timeout elapses.
+func closedWithin(ch <-chan struct{}, timeout time.Duration) bool {
+	select {
+	case <-ch:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
 func TestReadyBuildTasksBypassDependencyAndReportWaits(t *testing.T) {
 	t.Parallel()
 	// The first task is blocked. Its dependent must not consume the second
@@ -88,9 +98,7 @@ func TestReadyBuildTasksStartAfterDependencyStarted(t *testing.T) {
 		})
 		close(returned)
 	}()
-	select {
-	case <-secondStarted:
-	case <-time.After(30 * time.Second):
+	if !closedWithin(secondStarted, 30*time.Second) {
 		close(releaseFirst)
 		<-returned
 		t.Fatal("task 1 did not start while task 0 was running")
@@ -129,9 +137,7 @@ func TestReadyBuildTasksStartAfterOneDependencyFinished(t *testing.T) {
 		})
 		close(returned)
 	}()
-	select {
-	case <-thirdStarted:
-	case <-time.After(30 * time.Second):
+	if !closedWithin(thirdStarted, 30*time.Second) {
 		close(releaseFirst)
 		<-returned
 		t.Fatal("task 2 did not start while task 0 was running")
@@ -167,9 +173,7 @@ func TestReadyBuildTasksSuspendReleasesWorker(t *testing.T) {
 		})
 		close(returned)
 	}()
-	select {
-	case <-returned:
-	case <-time.After(30 * time.Second):
+	if !closedWithin(returned, 30*time.Second) {
 		closeThirdRan.Do(func() { close(thirdRan) })
 		<-returned
 		t.Fatal("suspending a task did not release its worker")
