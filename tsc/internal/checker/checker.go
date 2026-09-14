@@ -19194,6 +19194,10 @@ func (c *Checker) getPropertiesOfObjectType(t *Type) []*ast.Symbol {
 func (c *Checker) getPropertiesOfUnionOrIntersectionType(t *Type) []*ast.Symbol {
 	d := t.AsUnionOrIntersectionType()
 	if d.resolvedProperties == nil {
+		if props, ok := c.getPropertiesOfObjectIntersectionType(t); ok {
+			d.resolvedProperties = props
+			return props
+		}
 		var checked collections.Set[string]
 		props := []*ast.Symbol{}
 		for _, current := range d.types {
@@ -19215,6 +19219,60 @@ func (c *Checker) getPropertiesOfUnionOrIntersectionType(t *Type) []*ast.Symbol 
 		d.resolvedProperties = props
 	}
 	return d.resolvedProperties
+}
+
+// getPropertiesOfObjectIntersectionType enumerates the properties of an intersection whose constituents are all plain
+// object types: not mapped types and not module types, so that each constituent is its own apparent type and a
+// by-name lookup on it finds exactly the symbols its property list holds. A name that a single constituent declares
+// is listed as that constituent's own symbol: getUnionOrIntersectionProperty returns the same symbol for it after
+// probing every constituent and caching the result, so nothing is synthesized and a later lookup recomputes the same
+// symbol. A name that two or more distinct symbols declare is synthesized as before, in the same order. The second
+// result is false for any other intersection, which is enumerated as before.
+func (c *Checker) getPropertiesOfObjectIntersectionType(t *Type) ([]*ast.Symbol, bool) {
+	if t.flags&TypeFlagsIntersection == 0 {
+		return nil, false
+	}
+	types := t.Types()
+	for _, current := range types {
+		if current.flags&TypeFlagsObject == 0 || current.objectFlags&ObjectFlagsMapped != 0 || current.symbol != nil && current.symbol.Flags&ast.SymbolFlagsValueModule != 0 {
+			return nil, false
+		}
+	}
+	type declaredName struct {
+		name   string
+		symbol *ast.Symbol // the first symbol that declares the name
+		shared bool        // a second, distinct symbol declares it
+	}
+	var names []declaredName
+	var index map[string]int
+	for i, current := range types {
+		props := c.getPropertiesOfObjectType(current)
+		if i == 0 {
+			names = make([]declaredName, 0, len(props))
+			index = make(map[string]int, len(props))
+		}
+		for _, prop := range props {
+			if j, ok := index[prop.Name]; ok {
+				if names[j].symbol != prop {
+					names[j].shared = true
+				}
+				continue
+			}
+			index[prop.Name] = len(names)
+			names = append(names, declaredName{name: prop.Name, symbol: prop})
+		}
+	}
+	result := make([]*ast.Symbol, 0, len(names))
+	for _, n := range names {
+		if !n.shared {
+			result = append(result, n.symbol)
+			continue
+		}
+		if prop := c.getPropertyOfUnionOrIntersectionType(t, n.name, true /*skipObjectFunctionPropertyAugment*/); prop != nil {
+			result = append(result, prop)
+		}
+	}
+	return result, true
 }
 
 func (c *Checker) getPropertyOfType(t *Type, name string) *ast.Symbol {
