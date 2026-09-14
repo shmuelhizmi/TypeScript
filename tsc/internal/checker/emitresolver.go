@@ -813,6 +813,11 @@ func (r *EmitResolver) MarkLinkedReferencesRecursively(file *ast.SourceFile) {
 	defer r.checkerMu.Unlock()
 
 	if file != nil {
+		if r.checker.sourceFileLinks.Get(file).typeChecked {
+			// Checking the file marked every reference it contains, with the types in hand; marking only
+			// ever sets a flag, so repeating it changes nothing.
+			return
+		}
 		var visit ast.Visitor
 		visit = func(n *ast.Node) bool {
 			if ast.IsImportEqualsDeclaration(n) && n.ModifierFlags()&ast.ModifierFlagsExport == 0 {
