@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/binder"
@@ -33,8 +34,9 @@ func (c *Checker) newFlowType(t *Type, incomplete bool) FlowType {
 }
 
 type SharedFlow struct {
-	flow     *ast.FlowNode
-	flowType FlowType
+	flow               *ast.FlowNode
+	flowType           FlowType
+	referenceDependent bool // lab flow-memo instrument
 }
 
 type FlowState struct {
@@ -48,6 +50,10 @@ type FlowState struct {
 	sharedFlowStart   int
 	reduceLabels      []*ast.FlowReduceLabelData
 	next              *FlowState
+	// Lab flow-memo instrument: decisions that depended on the reference node itself,
+	// and incomplete shared flow types recorded in this invocation.
+	referenceDependent int
+	incompleteShared   int
 }
 
 func (c *Checker) getFlowState() *FlowState {
@@ -97,7 +103,21 @@ func (c *Checker) getFlowTypeOfReferenceEx(reference *ast.Node, declaredType *Ty
 	f.flowContainer = flowContainer
 	f.sharedFlowStart = len(c.sharedFlows)
 	c.flowInvocationCount++
-	evolvedType := c.getTypeAtFlowNode(f, flowNode).t
+	var evolvedType *Type
+	if s := c.flowMemoStats; s != nil {
+		s.counts[flowMemoInvocations]++
+		s.invocationDepth++
+		if s.invocationDepth == 1 && flowMemoTiming {
+			start := time.Now()
+			evolvedType = c.getTypeAtFlowNode(f, flowNode).t
+			s.counts[flowMemoFlowNanos] += int64(time.Since(start))
+		} else {
+			evolvedType = c.getTypeAtFlowNode(f, flowNode).t
+		}
+		s.invocationDepth--
+	} else {
+		evolvedType = c.getTypeAtFlowNode(f, flowNode).t
+	}
 	c.sharedFlows = c.sharedFlows[:f.sharedFlowStart]
 	c.putFlowState(f)
 	// When the reference is 'x' in an 'x.length', 'x.push(value)', 'x.unshift(value)' or x[n] = value' operation,
@@ -125,11 +145,21 @@ func (c *Checker) getTypeAtFlowNode(f *FlowState, flow *ast.FlowNode) FlowType {
 		}
 		c.flowAnalysisDisabled = true
 		c.reportFlowControlError(f.reference)
+		if s := c.flowMemoStats; s != nil {
+			s.counts[flowMemoDepthTrips]++
+		}
 		return FlowType{t: c.errorType}
 	}
 	f.depth++
+	if s := c.flowMemoStats; s != nil && int64(f.depth) > s.counts[flowMemoMaxDepth] {
+		s.counts[flowMemoMaxDepth] = int64(f.depth)
+	}
 	var sharedFlow *ast.FlowNode
+	sharedReferenceDependent := 0
 	for {
+		if s := c.flowMemoStats; s != nil {
+			s.counts[flowMemoVisits]++
+		}
 		flags := flow.Flags
 		if flags&ast.FlowFlagsShared != 0 {
 			// We cache results of flow type resolution for shared nodes that were previously visited in
@@ -137,11 +167,15 @@ func (c *Checker) getTypeAtFlowNode(f *FlowState, flow *ast.FlowNode) FlowType {
 			// antecedent of more than one node.
 			for i := f.sharedFlowStart; i < len(c.sharedFlows); i++ {
 				if c.sharedFlows[i].flow == flow {
+					if c.sharedFlows[i].referenceDependent {
+						f.referenceDependent++
+					}
 					f.depth--
 					return c.sharedFlows[i].flowType
 				}
 			}
 			sharedFlow = flow
+			sharedReferenceDependent = f.referenceDependent
 		}
 		var t FlowType
 		switch {
@@ -157,17 +191,15 @@ func (c *Checker) getTypeAtFlowNode(f *FlowState, flow *ast.FlowNode) FlowType {
 				flow = flow.Antecedent
 				continue
 			}
-		case flags&ast.FlowFlagsCondition != 0:
-			t = c.getTypeAtFlowCondition(f, flow)
-		case flags&ast.FlowFlagsSwitchClause != 0:
-			t = c.getTypeAtSwitchClause(f, flow)
+		case flags&(ast.FlowFlagsCondition|ast.FlowFlagsSwitchClause) != 0:
+			t = c.getTypeAtFlowJunction(f, flow, nil)
 		case flags&ast.FlowFlagsBranchLabel != 0:
 			antecedents := getBranchLabelAntecedents(flow, f.reduceLabels)
 			if antecedents.Next == nil {
 				flow = antecedents.Flow
 				continue
 			}
-			t = c.getTypeAtFlowBranchLabel(f, flow, antecedents)
+			t = c.getTypeAtFlowJunction(f, flow, antecedents)
 		case flags&ast.FlowFlagsLoopLabel != 0:
 			if flow.Antecedents.Next == nil {
 				flow = flow.Antecedents.Flow
@@ -200,7 +232,10 @@ func (c *Checker) getTypeAtFlowNode(f *FlowState, flow *ast.FlowNode) FlowType {
 		}
 		if sharedFlow != nil {
 			// Record visited node and the associated type in the cache.
-			c.sharedFlows = append(c.sharedFlows, SharedFlow{flow: sharedFlow, flowType: t})
+			c.sharedFlows = append(c.sharedFlows, SharedFlow{flow: sharedFlow, flowType: t, referenceDependent: f.referenceDependent != sharedReferenceDependent})
+			if t.incomplete {
+				f.incompleteShared++
+			}
 		}
 		f.depth--
 		return t
@@ -298,10 +333,16 @@ func (c *Checker) getTypeAtFlowAssignment(f *FlowState, flow *ast.FlowNode) Flow
 }
 
 func (c *Checker) getInitialOrAssignedType(f *FlowState, flow *ast.FlowNode) *Type {
+	var t *Type
 	if ast.IsVariableDeclaration(flow.Node) || ast.IsBindingElement(flow.Node) {
-		return c.getNarrowableTypeForReference(c.getInitialType(flow.Node), f.reference, CheckModeNormal)
+		t = c.getInitialType(flow.Node)
+	} else {
+		t = c.getAssignedType(flow.Node)
 	}
-	return c.getNarrowableTypeForReference(c.getAssignedType(flow.Node), f.reference, CheckModeNormal)
+	if c.flowMemoStats != nil && c.isReferenceDependentNarrowableType(t) {
+		f.referenceDependent++
+	}
+	return c.getNarrowableTypeForReference(t, f.reference, CheckModeNormal)
 }
 
 func (c *Checker) isEmptyArrayAssignment(node *ast.Node) bool {

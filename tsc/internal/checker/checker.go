@@ -803,6 +803,7 @@ type Checker struct {
 	freeinferenceState                          *InferenceState
 	freeFlowState                               *FlowState
 	flowLoopCache                               map[FlowLoopKey]*Type
+	flowMemoStats                               *flowMemoStats
 	flowLoopStack                               []FlowLoopInfo
 	sharedFlows                                 []SharedFlow
 	antecedentTypes                             []*Type
@@ -1059,6 +1060,7 @@ func NewChecker(program Program, tracer *Tracer) (*Checker, *sync.Mutex) {
 	c.zeroBigIntType = c.getBigIntLiteralType(jsnum.PseudoBigInt{})
 	c.typeofType = c.getUnionType(core.Map(slices.Sorted(maps.Keys(typeofNEFacts)), c.getStringLiteralType))
 	c.flowLoopCache = make(map[FlowLoopKey]*Type)
+	c.flowMemoStats = newFlowMemoStats()
 	c.flowNodeReachable = make(map[*ast.FlowNode]bool)
 	c.flowNodePostSuper = make(map[*ast.FlowNode]bool)
 	c.subtypeRelation = &Relation{}
@@ -14201,6 +14203,9 @@ func (c *Checker) produceDeferredDiagnostics() {
 func (c *Checker) addDiagnostic(diagnostic *ast.Diagnostic) *ast.Diagnostic {
 	// Discard diagnostics created while at the maximum number of recursive TypeToString invocations.
 	if c.serializationLevel < maxSerializationLevel {
+		if s := c.flowMemoStats; s != nil {
+			s.diagnostics++
+		}
 		return c.diagnostics.Add(diagnostic)
 	}
 	return diagnostic
@@ -14209,6 +14214,9 @@ func (c *Checker) addDiagnostic(diagnostic *ast.Diagnostic) *ast.Diagnostic {
 func (c *Checker) addSuggestionDiagnostic(diagnostic *ast.Diagnostic) *ast.Diagnostic {
 	// Discard diagnostics created while at the maximum number of recursive TypeToString invocations.
 	if c.serializationLevel < maxSerializationLevel {
+		if s := c.flowMemoStats; s != nil {
+			s.diagnostics++
+		}
 		return c.suggestionDiagnostics.Add(diagnostic)
 	}
 	return diagnostic
@@ -19092,6 +19100,9 @@ func (c *Checker) pushTypeResolution(target TypeSystemEntity, propertyName TypeS
 	resolutionCycleStartIndex := c.findResolutionCycleStartIndex(target, propertyName)
 	if resolutionCycleStartIndex >= 0 {
 		// A cycle was found
+		if s := c.flowMemoStats; s != nil {
+			s.cycles++
+		}
 		for i := resolutionCycleStartIndex; i < len(c.typeResolutions); i++ {
 			c.typeResolutions[i].result = false
 		}
