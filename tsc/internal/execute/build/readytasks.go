@@ -1,11 +1,12 @@
 package build
 
 // taskDependencies lists, for one task of a build, the tasks it must not start before: those that
-// must have finished and those that must merely have started. Dependencies have lower indices than
-// the tasks that depend on them.
+// must all have finished, those that must all have started, and those of which at least one must
+// have finished. Dependencies have lower indices than the tasks that depend on them.
 type taskDependencies struct {
-	finished []int
-	started  []int
+	finished    []int
+	started     []int
+	oneFinished []int
 }
 
 // executeReadyBuildTasks calls execute for every task, starting a task as soon as its dependencies
@@ -29,6 +30,8 @@ func executeReadyBuildTasks(dependencies []taskDependencies, workerCount int, ex
 	pending := make([]int, count)
 	startConsumers := make([][]int, count)
 	finishConsumers := make([][]int, count)
+	oneFinishedConsumers := make([][]int, count)
+	oneFinished := make([]bool, count)
 	for i, task := range dependencies {
 		pending[i] = len(task.finished) + len(task.started)
 		for _, dependency := range task.finished {
@@ -36,6 +39,12 @@ func executeReadyBuildTasks(dependencies []taskDependencies, workerCount int, ex
 		}
 		for _, dependency := range task.started {
 			startConsumers[dependency] = append(startConsumers[dependency], i)
+		}
+		if len(task.oneFinished) != 0 {
+			pending[i]++
+			for _, dependency := range task.oneFinished {
+				oneFinishedConsumers[dependency] = append(oneFinishedConsumers[dependency], i)
+			}
 		}
 	}
 	workers := make(chan struct{}, workerCount)
@@ -77,6 +86,12 @@ func executeReadyBuildTasks(dependencies []taskDependencies, workerCount int, ex
 			remaining--
 			finished[i] = true
 			release(finishConsumers[i])
+			for _, consumer := range oneFinishedConsumers[i] {
+				if !oneFinished[consumer] {
+					oneFinished[consumer] = true
+					release([]int{consumer})
+				}
+			}
 			for nextReport < count && finished[nextReport] {
 				report(nextReport)
 				nextReport++

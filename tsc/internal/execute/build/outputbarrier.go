@@ -255,7 +255,16 @@ type outputBarrier struct {
 var _ vfs.FS = (*outputBarrier)(nil)
 
 func newOutputBarrier(owners *outputOwners, fs vfs.FS, task *BuildTask, suspend func(wait func())) *outputBarrier {
-	return &outputBarrier{FS: fs, owners: owners, index: owners.index[task], referenced: task.referencedTasks(), suspend: suspend}
+	b := &outputBarrier{FS: fs, owners: owners, index: owners.index[task], referenced: task.referencedTasks(), suspend: suspend}
+	b.settle()
+	return b
+}
+
+// settle records that nothing is left to wait for once every earlier project has finished.
+func (b *outputBarrier) settle() {
+	if len(b.unfinished(b.owners.tasks[:b.index])) == 0 {
+		b.settled.Store(true)
+	}
 }
 
 // observeFile waits for the projects whose outputs an observation of the file at path can show.
@@ -300,22 +309,21 @@ func (b *outputBarrier) waitForUpstream() {
 // wait waits for the earlier projects among owners that have not finished, with the task's worker
 // released.
 func (b *outputBarrier) wait(owners []*BuildTask) {
-	pending := b.unfinished(owners)
-	if len(pending) == 0 {
+	if len(owners) == 0 {
 		return
 	}
-	b.waiting.Lock()
-	defer b.waiting.Unlock()
-	if pending = b.unfinished(pending); len(pending) != 0 {
-		b.suspend(func() {
-			for _, task := range pending {
-				<-task.done
-			}
-		})
+	if pending := b.unfinished(owners); len(pending) != 0 {
+		b.waiting.Lock()
+		defer b.waiting.Unlock()
+		if pending = b.unfinished(pending); len(pending) != 0 {
+			b.suspend(func() {
+				for _, task := range pending {
+					<-task.done
+				}
+			})
+		}
 	}
-	if len(b.unfinished(b.owners.tasks[:b.index])) == 0 {
-		b.settled.Store(true)
-	}
+	b.settle()
 }
 
 // unfinished returns the projects among owners that are earlier in the build order and have not
