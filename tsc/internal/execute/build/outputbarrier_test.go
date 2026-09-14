@@ -46,7 +46,7 @@ func newBarrierFixture() *barrierFixture {
 	f.other = newTask("other")
 	app := newTask("app", f.client)
 	f.later = newTask("later")
-	f.barrier = newOutputBarrier(owners, fs, app, func(wait func()) { wait() })
+	f.barrier = newOutputBarrier(owners, fs, app, func(wait func()) { wait() }, time.Now)
 	return f
 }
 
