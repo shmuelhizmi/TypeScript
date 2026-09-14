@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/binder"
@@ -665,6 +666,8 @@ type Checker struct {
 	intersectionTypes                           map[CacheHashKey]*Type
 	propertiesTypes                             map[PropertiesTypesKey]*Type
 	diagnostics                                 ast.DiagnosticsCollection
+	neverCensusInCheck                          bool               // lab instrument: the never-intersection check is enumerating
+	neverCensusChecked                          map[*Type]struct{} // lab instrument: intersections enumerated first by the never-intersection check
 	suggestionDiagnostics                       ast.DiagnosticsCollection
 	symbolArena                                 core.Arena[ast.Symbol]
 	signatureArena                              core.Arena[Signature]
@@ -19193,6 +19196,7 @@ func (c *Checker) getPropertiesOfObjectType(t *Type) []*ast.Symbol {
 
 func (c *Checker) getPropertiesOfUnionOrIntersectionType(t *Type) []*ast.Symbol {
 	d := t.AsUnionOrIntersectionType()
+	c.noteNeverCensusUse(t, false)
 	if d.resolvedProperties == nil {
 		var checked collections.Set[string]
 		props := []*ast.Symbol{}
@@ -21768,6 +21772,7 @@ func (c *Checker) getPropertyOfUnionOrIntersectionType(t *Type, name string, ski
 // these partial properties when identifying discriminant properties, but otherwise they are filtered out
 // and do not appear to be present in the union type.
 func (c *Checker) getUnionOrIntersectionProperty(t *Type, name string, skipObjectFunctionPropertyAugment bool) *ast.Symbol {
+	c.noteNeverCensusUse(t, true)
 	var cache ast.SymbolTable
 	if skipObjectFunctionPropertyAugment {
 		cache = ast.GetSymbolTable(&t.AsUnionOrIntersectionType().propertyCacheWithoutFunctionPropertyAugment)
@@ -22193,7 +22198,15 @@ func (c *Checker) getReducedType(t *Type) *Type {
 	case t.flags&TypeFlagsIntersection != 0:
 		if t.objectFlags&ObjectFlagsIsNeverIntersectionComputed == 0 {
 			t.objectFlags |= ObjectFlagsIsNeverIntersectionComputed
-			if core.Some(c.getPropertiesOfUnionOrIntersectionType(t), c.isNeverReducedProperty) {
+			// Lab instrument: what the never-intersection check enumerates.
+			alreadyResolved := t.AsUnionOrIntersectionType().resolvedProperties != nil
+			start := time.Now()
+			c.neverCensusInCheck = true
+			props := c.getPropertiesOfUnionOrIntersectionType(t)
+			never := core.Some(props, c.isNeverReducedProperty)
+			c.neverCensusInCheck = false
+			c.recordNeverCensus(t, props, never, alreadyResolved, time.Since(start))
+			if never {
 				t.objectFlags |= ObjectFlagsIsNeverIntersection
 			}
 		}
@@ -22218,6 +22231,68 @@ func (c *Checker) getReducedUnionType(unionType *Type) *Type {
 
 func (c *Checker) isNeverReducedProperty(prop *ast.Symbol) bool {
 	return c.isDiscriminantWithNeverType(prop) || isConflictingPrivateProperty(prop)
+}
+
+// NeverCensus is a lab instrument: what the never-intersection check of getReducedType enumerates, over the process.
+// Intersections: checks run; Never: intersections reduced to never; AlreadyResolved: the properties were enumerated
+// before the check; ObjectOnly: every constituent is an object type; Names: properties found;
+// Single: properties that are a constituent's own symbol (no synthesis); LaterEnumerated: intersections first
+// enumerated by the check whose property list was used again later; LaterLookups: by-name lookups on such
+// intersections after the check; Nanos: time inside the check.
+var NeverCensus struct {
+	Intersections, Never, AlreadyResolved, ObjectOnly, Constituents, Names, Single, LaterEnumerated, LaterLookups, Nanos atomic.Int64
+}
+
+func (c *Checker) recordNeverCensus(t *Type, props []*ast.Symbol, never bool, alreadyResolved bool, elapsed time.Duration) {
+	NeverCensus.Intersections.Add(1)
+	if never {
+		NeverCensus.Never.Add(1)
+	}
+	if alreadyResolved {
+		NeverCensus.AlreadyResolved.Add(1)
+	} else {
+		if c.neverCensusChecked == nil {
+			c.neverCensusChecked = make(map[*Type]struct{})
+		}
+		c.neverCensusChecked[t] = struct{}{}
+	}
+	objectOnly := true
+	for _, current := range t.Types() {
+		if current.flags&TypeFlagsObject == 0 {
+			objectOnly = false
+			break
+		}
+	}
+	if objectOnly {
+		NeverCensus.ObjectOnly.Add(1)
+	}
+	NeverCensus.Constituents.Add(int64(len(t.Types())))
+	NeverCensus.Names.Add(int64(len(props)))
+	single := 0
+	for _, prop := range props {
+		if prop.CheckFlags&(ast.CheckFlagsSyntheticProperty|ast.CheckFlagsSyntheticMethod) == 0 {
+			single++
+		}
+	}
+	NeverCensus.Single.Add(int64(single))
+	NeverCensus.Nanos.Add(elapsed.Nanoseconds())
+}
+
+// noteNeverCensusUse records a use of an intersection's properties after the never-intersection check enumerated
+// them: a full enumeration (byName false) or a by-name lookup.
+func (c *Checker) noteNeverCensusUse(t *Type, byName bool) {
+	if c.neverCensusInCheck || t.flags&TypeFlagsIntersection == 0 {
+		return
+	}
+	if _, ok := c.neverCensusChecked[t]; !ok {
+		return
+	}
+	if byName {
+		NeverCensus.LaterLookups.Add(1)
+		return
+	}
+	delete(c.neverCensusChecked, t)
+	NeverCensus.LaterEnumerated.Add(1)
 }
 
 func (c *Checker) getReducedApparentType(t *Type) *Type {

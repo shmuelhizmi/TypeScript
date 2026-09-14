@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -1914,6 +1915,11 @@ func (p *Program) Emit(ctx context.Context, options EmitOptions) *EmitResult {
 
 	// wait for emit to complete
 	wg.RunAndWait()
+	if os.Getenv("TSGO_NEVER_CENSUS") != "" {
+		n := &checker.NeverCensus
+		fmt.Fprintf(os.Stderr, "never-census\tintersections\t%d\tnever\t%d\talready-resolved\t%d\tobject-only\t%d\tconstituents\t%d\tnames\t%d\tsingle\t%d\tlater-enumerated\t%d\tlater-lookups\t%d\tms\t%d\n",
+			n.Intersections.Load(), n.Never.Load(), n.AlreadyResolved.Load(), n.ObjectOnly.Load(), n.Constituents.Load(), n.Names.Load(), n.Single.Load(), n.LaterEnumerated.Load(), n.LaterLookups.Load(), n.Nanos.Load()/1e6)
+	}
 
 	// collect results from emit, preserving input order
 	return CombineEmitResults(core.Map(emitters, func(e *emitter) *EmitResult {
