@@ -682,6 +682,13 @@ func (r *EmitResolver) isSymbolAccessible(symbol *ast.Symbol, enclosingDeclarati
 	return r.checker.IsSymbolAccessible(symbol, enclosingDeclaration, meaning, shouldComputeAliasToMarkVisible)
 }
 
+// TypeAndSymbolCounts reports the checker's type and symbol counts under the resolver's lock (lab instrument).
+func (r *EmitResolver) TypeAndSymbolCounts() (uint32, uint32) {
+	r.checkerMu.Lock()
+	defer r.checkerMu.Unlock()
+	return r.checker.TypeCount, r.checker.SymbolCount
+}
+
 func (r *EmitResolver) IsSymbolAccessible(symbol *ast.Symbol, enclosingDeclaration *ast.Node, meaning ast.SymbolFlags, shouldComputeAliasToMarkVisible bool) printer.SymbolAccessibilityResult {
 	// TODO: Split into locking and non-locking API methods - only current usage is the symbol tracker, which is non-locking,
 	// as all tracker calls happen within a CreateX call below, which already holds a lock

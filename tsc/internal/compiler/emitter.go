@@ -1,10 +1,13 @@
 package compiler
 
 import (
+	"fmt"
+	"os"
 	"sync"
 
 	"github.com/microsoft/TypeScript/tsc/internal/ast"
 	"github.com/microsoft/TypeScript/tsc/internal/binder"
+	"github.com/microsoft/TypeScript/tsc/internal/checker"
 	"github.com/microsoft/TypeScript/tsc/internal/core"
 	"github.com/microsoft/TypeScript/tsc/internal/diagnostics"
 	"github.com/microsoft/TypeScript/tsc/internal/outputpaths"
@@ -50,7 +53,18 @@ func (e *emitter) emit() {
 	if e.tr != nil {
 		defer e.tr.Push(tracing.PhaseEmit, "emit", map[string]any{"path": string(e.sourceFile.Path())}, true)()
 	}
-	if e.emitsConcurrently() {
+	if jsEmitCountsInstrument {
+		// Lab instrument (TSGO_JS_EMIT_COUNTS): emit sequentially and report a file whose JavaScript emit
+		// created types or symbols on the checker; Program.Emit runs single-threaded under the instrument.
+		resolver := e.host.GetEmitResolver().(*checker.EmitResolver)
+		typesBefore, symbolsBefore := resolver.TypeAndSymbolCounts()
+		e.emitJSFile(e.sourceFile, e.paths.JsFilePath(), e.paths.SourceMapFilePath())
+		typesAfter, symbolsAfter := resolver.TypeAndSymbolCounts()
+		if typesAfter != typesBefore || symbolsAfter != symbolsBefore {
+			fmt.Fprintf(os.Stderr, "js-emit-counts\t%s\t%d\t%d\n", e.sourceFile.FileName(), typesAfter-typesBefore, symbolsAfter-symbolsBefore)
+		}
+		e.emitDeclarationFile(e.sourceFile, e.paths.DeclarationFilePath(), e.paths.DeclarationMapPath())
+	} else if e.emitsConcurrently() {
 		e.emitConcurrently()
 	} else {
 		e.emitJSFile(e.sourceFile, e.paths.JsFilePath(), e.paths.SourceMapFilePath())
@@ -64,6 +78,8 @@ func (e *emitter) emit() {
 // longest part of the program's emit phase; for smaller files the second emit context kept alive by the overlap
 // would cost more memory than the time it saves.
 const concurrentEmitMinLength = 256 << 10
+
+var jsEmitCountsInstrument = os.Getenv("TSGO_JS_EMIT_COUNTS") != ""
 
 func (e *emitter) emitsConcurrently() bool {
 	return !e.singleThreaded && e.emitOnly == EmitAll && len(e.paths.JsFilePath()) != 0 && len(e.paths.DeclarationFilePath()) != 0 &&
